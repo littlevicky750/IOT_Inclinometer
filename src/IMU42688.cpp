@@ -74,18 +74,25 @@ byte IMU42688::Update()
         Serial.print(", Z : ");
         Serial.print(AngleShow[2], 3);
         Serial.print(", g : ");
+        Serial.print(", X : ");
+        Serial.print(Angle[0], 3);
+        Serial.print(", Y : ");
+        Serial.print(Angle[1], 3);
+        Serial.print(", Z : ");
+        Serial.print(Angle[2], 3);
+        Serial.print(", g : ");
         Serial.println(Gravity);
-        */
+        //*/
         break;
     NextLoop:
         delay(10);
     } // end for
 
     // Check Warm Up Time ------------------------------
-    if (fWarmUp != 100 && millis() - IMUStart < 10 * 1000)
+    if (fWarmUp != 100 && millis() - IMUStart < 60 * 1000)
     {
         ErrorCode = Err_IMU_Not_Warm_Up;
-        fWarmUp = (millis() - IMUStart) / 100;
+        fWarmUp = (millis() - IMUStart) / 600;
         pLED->Set(0, pLED->Y, 1, 2);
     }
     else if (fWarmUp != 100)

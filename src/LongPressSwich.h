@@ -8,6 +8,7 @@
 #include "LEDFlash.h"
 #include "OLED.h"
 #include "Battery.h"
+#include "Driver/adc.h"
 RTC_DATA_ATTR int bootCount = -1;
 
 class LongPressSwich
@@ -42,6 +43,7 @@ public:
         // Setting
         Serial.setRxBufferSize(256);
         Serial.begin(115200);
+        Serial.println("Start");
         pOLED = &oled;
         pBattery = &Bat;
         pLED = &LED;
@@ -125,10 +127,9 @@ public:
             pOLED->Block("Auto Sleep");
             Debug.println("Auto Sleep");
         }
-
         if (PressSleep || TimeOffSleep || LowPowerOff)
         {
-            cli();
+            Debug.println("[Battery] Battery "+String(pBattery->Percent)+" %");
             int ForShow = millis();
             if (pSD)
             {
@@ -136,20 +137,27 @@ public:
                 String T = "";
                 pSD->Save("", T);
             }
-            while (millis() - ForShow < 2000)
+            while (millis() - ForShow < 2500)
             {
-            }
-            if (TimeOffSleep && millis() - *LastTriggure < 5000)
-            {
-                sei();
-                return;
+                if (TimeOffSleep)
+                {
+                    if (digitalRead(ButPin)==0)
+                    {
+                        *LastTriggure = millis();
+                        return;
+                    }
+                    delay(1);
+                }
             }
             pOLED->TurnOff();
             while (digitalRead(ButPin) == 0)
             {
+                // Wait until release Button
             }
-            Serial.println("Sleep");
+            adc_power_off();
+            esp_wifi_stop();
             digitalWrite(SWPin, LOW);
+            Serial.println("Sleep");
             esp_deep_sleep_start();
         }
     }

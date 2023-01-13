@@ -24,8 +24,6 @@ private:
     void Main2(int x, int y, int TW, int TH);
     void ICON(int x, int y, int w, int h);
     void Battery(int x, int y, int w, int h, int b);
-    void BatteryPage();
-    void Battery(int x, int y, bool isH); // w = 20, h = 11
     void CheckState();
     void Clock();
     void Save(int x, int y);

@@ -1,5 +1,6 @@
+// Add Unit show mm/m (rougth, need to blame in the whole system in next version), resolution 0.2
+// Add Time show by Clock icon
 #include <Arduino.h>
-
 #include "SerialDebug.h"
 SerialDebug D;
 extern SerialDebug Debug = D;
@@ -236,8 +237,9 @@ void ButtonUpdate()
     memset(ButPress, false, sizeof(ButPress));
   if (ButPress[0] || ButPress[1] || ButPress[2])
     LastEdit = millis();
-  else if (oled.Page != 0 && millis() - LastEdit > 10000)
+  else if (oled.Page != 0 && millis() - LastEdit > 10000 && !TestVersion)
     oled.Page = 0;
+
   bool ButtonUp = (imu.GravityPrevious == 4) ? ButPress[2] : ButPress[1];
   bool ButtonDown = (imu.GravityPrevious == 4) ? ButPress[1] : ButPress[2];
   bool ButtonLeft = (imu.Gravity == 0) ? ButPress[1] : ButPress[2];
@@ -312,9 +314,9 @@ void ButtonUpdate()
     if (ButPress[0])
       oled.Page = 0;
     if (ButtonUp)
-      oled.ShowUnit = 0;
+      oled.ShowUnit = (oled.ShowUnit + 2) % 3;
     if (ButtonDown)
-      oled.ShowUnit = 1;
+      oled.ShowUnit = (oled.ShowUnit + 1) % 3;
     break;
   case 4: // WiFi Page
     if (ButPress[0])
@@ -324,7 +326,13 @@ void ButtonUpdate()
     if (ButtonAdd)
       WiFiChannel(1);
     break;
-  case 5: // Clock Page
+  case 5:
+    if (ButtonDown)
+      sdCard.Swich();
+    if (ButPress[0])
+      oled.Page = 0;
+    break;
+  case 6: // Clock Page
     if (Clock.Cursor == -1)
     {
       if (ButPress[0])
@@ -354,12 +362,6 @@ void ButtonUpdate()
       }
     }
     break;
-  case 6:
-    if (ButtonDown)
-      sdCard.Swich();
-    if (ButPress[0])
-      oled.Page = 0;
-    break;
   case 7:
     if (ButPress[0])
       oled.Page = 0;
@@ -385,6 +387,7 @@ void setup()
     LED.Set(0, LED.M, 1, 0);
   Debug.SetRTC(&Clock);
   Debug.printOnTop("-------------------------ESP_Start-------------------------");
+  Debug.println("[Battery] Battery "+String(Bat.Percent)+" %");
   Swich.pSD = &sdCard;
   Swich.LastTriggure = &LastEdit;
   rfid.Initialize(IO_Buzzer);
