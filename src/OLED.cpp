@@ -96,16 +96,24 @@ void OLED::TurnOff()
 void OLED::Block(String BlockInfo)
 {
     Begin();
-    BlockTime = millis() + 3000;
-    u8g2.clearBuffer();
-    if (imu->GravityPrevious == 4)
-        u8g2.setDisplayRotation(U8G2_R2);
+    if (BlockInfo == "")
+    {
+        BlockTime = millis();
+        return;
+    }
     else
-        u8g2.setDisplayRotation(U8G2_R0);
-    u8g2.setFont(Default_Font);
-    int w = u8g2.getStrWidth(BlockInfo.c_str());
-    u8g2.drawStr(64 - w / 2, 40, BlockInfo.c_str());
-    u8g2.sendBuffer();
+    {
+        BlockTime = millis() + 3000;
+        u8g2.clearBuffer();
+        if (imu->GravityPrevious == 4)
+            u8g2.setDisplayRotation(U8G2_R2);
+        else
+            u8g2.setDisplayRotation(U8G2_R0);
+        u8g2.setFont(Default_Font);
+        int w = u8g2.getStrWidth(BlockInfo.c_str());
+        u8g2.drawStr(64 - w / 2, 40, BlockInfo.c_str());
+        u8g2.sendBuffer();
+    }
 }
 
 void OLED::Update()
@@ -175,15 +183,15 @@ void OLED::Update()
             break;
         }
         break;
-    case 5:
+    case 6:
         if (imu->GravityPrevious == 4)
             u8g2.setDisplayRotation(U8G2_R2);
         else
             u8g2.setDisplayRotation(U8G2_R0);
         Clock();
-        Battery(97, 0, H);
+        Battery(99, 1, 20, 10, 2);
         break;
-    case 6:
+    case 5:
         if (imu->GravityPrevious == 4)
         {
             u8g2.setDisplayRotation(U8G2_R2);
@@ -208,11 +216,11 @@ void OLED::Update()
             u8g2.setDisplayRotation(U8G2_R2);
         else
             u8g2.setDisplayRotation(U8G2_R0);
-        Battery(u8g2.getDisplayWidth()/2 - 32, u8g2.getDisplayHeight()/2 - 24, 64, 26, 6);
+        Battery(u8g2.getDisplayWidth() / 2 - 32, u8g2.getDisplayHeight() / 2 - 24, 64, 26, 6);
         char B[6];
-        sprintf(B,"%d %%",min(max(*Bat,0),100));
+        sprintf(B, "%d %%", min(max(*Bat, 0), 100));
         u8g2.setFont(Default_Font);
-        u8g2.drawStr((u8g2.getDisplayWidth() - u8g2.getStrWidth(B)) / 2, u8g2.getDisplayHeight()/2 + 24, B);
+        u8g2.drawStr((u8g2.getDisplayWidth() - u8g2.getStrWidth(B)) / 2, u8g2.getDisplayHeight() / 2 + 24, B);
         break;
     default:
         CheckState();
@@ -249,12 +257,16 @@ void OLED::Unit()
 {
     u8g2.setFont(Default_Font);
     u8g2.drawStr(0, 11, "Unit");
-    u8g2.drawBox(0, 13, 128, 2);
-    u8g2.drawBox(0, 17 + 16 * ShowUnit, 128, 16);
+    u8g2.drawBox(0, 13, 128, 1);
+    char U[3][7] = {"degree", "mm  m", "radian"};
+    int y[3] = {15, 33, 49};
+    int dh[3] = {1, 2, 2};
+    u8g2.drawBox(0, y[ShowUnit], 128, 17 - dh[ShowUnit]);
     u8g2.setDrawColor(2);
-    char U[2][7] = {"degree", "radian"};
-    u8g2.drawStr(64 - u8g2.getStrWidth(U[0]) / 2, 29, U[0]);
-    u8g2.drawStr(64 - u8g2.getStrWidth(U[1]) / 2, 46, U[1]);
+    u8g2.drawStr(64 - u8g2.getStrWidth(U[0]) / 2, y[0] + dh[0] + 11, U[0]);
+    u8g2.drawStr(64 - u8g2.getStrWidth(U[1]) / 2, y[1] + dh[1] + 10, U[1]);
+    u8g2.drawStr(64 - u8g2.getStrWidth(U[2]) / 2, y[2] + dh[2] + 11, U[2]);
+    u8g2.drawStr(64 - u8g2.getStrWidth(U[2]) / 2 + u8g2.getStrWidth("mm") + 2, y[1] + dh[1] + 11, "/");
     u8g2.setDrawColor(1);
 }
 
@@ -275,7 +287,30 @@ void OLED::Menu(int x, int y, bool isH)
         u8g2.setDrawColor(i != MenuCursor);
         if (i == 6)
         {
-            Battery(x + nx + 6, y + ny + 11, H);
+            Battery(x + nx + 5, y + ny + 10, 22, 12, 2);
+        }
+        else if (i == 5)
+        {
+            u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, BlankClock24x24);
+            int num = ClockShow->now.minute();
+            for (int l = 8; l > 4; l -= 3)
+            {
+                int px = x + nx + 15 + (num > 30);
+                int py = y + ny + 16 - (num + 16) / 30 % 2;
+                u8g2.drawLine(px, py, px + l * sin(num / 30.0 * PI) + 0.5, py - (l + 1) * cos(num / 30.0 * PI) + 0.5);
+                num = ClockShow->now.twelveHour() * 5 + ClockShow->now.minute() / 12;
+            }
+        }
+        else if (i == 4)
+        {
+            if (pSD->Show.indexOf("OFF") != -1)
+                u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, SDOFF24x24);
+            else if (*SDState == false)
+                u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, NOSD24x24);
+            else if (*fSave)
+                u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, SDSave24x24);
+            else
+                u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, SD24x24);
         }
         else if (i == 3)
         {
@@ -291,7 +326,7 @@ void OLED::Menu(int x, int y, bool isH)
                 u8g2.drawGlyph(x + nx + 22, y + ny + 28, pWifiState->Channel + 48);
             }
         }
-        else if (i == 0 || i == 4 || i == 5)
+        else if (i == 0 || i == 4)
         {
             u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, Menu_XBM[i]);
         }
@@ -419,14 +454,13 @@ void OLED::QuickInfo(int x, int y, int w, int h)
     u8g2.setFont(Describe_Font);
     u8g2.setDrawColor(0);
     char S1[5];
-    char S2[5];
+    char S2[3][5] = {"deg", "mm/m", "rad"};
     sprintf(S1, "MD=%d", Standard->Standard);
-    strcpy(S2, (ShowUnit == 0) ? "deg" : "rad");
     int hs = u8g2.getAscent() - u8g2.getDescent();
     int ws = u8g2.getStrWidth(S1);
     u8g2.drawStr(x + w / 2 - ws / 2, y + (h + 2 * hs) / 4 - 1, S1);
-    ws = u8g2.getStrWidth(S2);
-    u8g2.drawStr(x + w / 2 - ws / 2, y + (3 * h + 2 * hs) / 4 - 1, S2);
+    ws = u8g2.getStrWidth(S2[ShowUnit]);
+    u8g2.drawStr(x + w / 2 - ws / 2, y + (3 * h + 2 * hs) / 4 - 1, S2[ShowUnit]);
     u8g2.setDrawColor(1);
 }
 
@@ -434,7 +468,6 @@ void OLED::Main2(int x, int y, int TW, int TH)
 {
     char Title[3][3] = {"ID", "A1", "A2"};
     float An[2];
-    int showdigit = 2;
     if (Measure->State == Measure->Done)
     {
         An[0] = Measure->ResultAngle[0];
@@ -445,17 +478,31 @@ void OLED::Main2(int x, int y, int TW, int TH)
         An[0] = imu->getHorizontalFilt();
         An[1] = imu->getVerticalFilt();
     }
-    if (ShowUnit == 1)
-    {
-        An[0] = An[0] * PI / 180.0;
-        An[1] = An[0] * PI / 180.0;
-        showdigit = 4;
-    }
-
     char A[3][8];
     strcpy(A[0], ID->c_str());
-    dtostrf(An[0], 7, showdigit, A[1]);
-    dtostrf(An[1], 7, showdigit, A[2]);
+    switch (ShowUnit)
+    {
+    case 1:
+        for (int i = 0; i < 2; i++)
+        {
+            if (abs(An[i]) < 5.7)
+            {
+                An[i] = round( tan(An[i] * PI / 180.0) * 5000)/ 5.0;
+                dtostrf(An[i], 7, 1, A[i + 1]);
+            }
+            else
+                strcpy(A[i + 1], "-------");
+        }
+        break;
+    case 2:
+        dtostrf(An[0] * PI / 180.0, 7, 4, A[1]);
+        dtostrf(An[1] * PI / 180.0, 7, 4, A[2]);
+        break;
+    default:
+        dtostrf(An[0], 7, 2, A[1]);
+        dtostrf(An[1], 7, 2, A[2]);
+        break;
+    }
 
     u8g2.setFont(MSpace_Font);
     int Sh = 10;
@@ -519,7 +566,7 @@ void OLED::CheckState()
         State = 2;
     else if (Measure->State == Measure->Measuring)
         State = 3;
-    else if (*SDState == false)
+    else if (*SDState == false && pSD->Show.indexOf("OFF") == -1)
         State = 6;
     else if (Measure->State == Measure->Sleep)
         State = 1;
@@ -616,14 +663,6 @@ void OLED::Mode()
         u8g2.drawGlyph(60, 30 + 16 * i, Standard->flag + i + 48);
     }
     u8g2.setDrawColor(1);
-}
-
-void OLED::Battery(int x, int y, bool isH)
-{
-    int BatBox = min(max(*Bat / 7, 0), 14);
-    u8g2.drawFrame(x, y, 18, 10);
-    u8g2.drawBox(x + 18, y + 3, 2, 4);
-    u8g2.drawBox(x + 2, y + 2, BatBox, 6);
 }
 
 int OLED::WiFiShow()

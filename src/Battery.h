@@ -30,7 +30,7 @@ public:
             delay(1);
         }
         if (Count != 0)
-            Percent = ((Sum / Count + 1.0 - 3100.0) / 300.0 * 100.0 + 0.5);
+            Percent = ((Sum / Count + 1.0 - 3100.0) / 350.0 * 100.0 + 0.5);
     }
 };
 

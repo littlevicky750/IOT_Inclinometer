@@ -15,7 +15,7 @@ extern "C"
 #define WIFI_SSID "GH034"
 #define WIFI_PASSWORD "chenlaoshiniubi"
 // Raspberry Pi Mosquitto MQTT Broker
-#define MQTT_HOST IPAddress(192, 168, 2, 138)
+#define MQTT_HOST IPAddress(192, 168, 10, 149)
 // For a cloud MQTT broker, type the domain name
 // #define MQTT_HOST "example.com"
 #define MQTT_PORT 1883
@@ -196,9 +196,9 @@ void WiFiChannel(int k)
     if (PrevioudState != WiFiState.Channel)
     {
         if (PrevioudState == 0 && WiFiState.now == WiFiState.Off)
-            xTimerStart(wifiOnOffTimer,0);
+            xTimerStart(wifiOnOffTimer, 0);
         if (WiFiState.Channel == 0 && WiFiState.now != WiFiState.Off)
-            xTimerStart(wifiOnOffTimer,0);
+            xTimerStart(wifiOnOffTimer, 0);
         if (WiFiState.Channel != 0)
         {
             char A = "012345"[WiFiState.Channel];
@@ -222,7 +222,7 @@ void Net_Init()
     // Timer Call Back will run in the core same as Net_Init was called.
     mqttReconnectTimer = xTimerCreate("mqttTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToMqtt));
     wifiReconnectTimer = xTimerCreate("wifiTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToWifi));
-    wifiOnOffTimer = xTimerCreate("WiFiOnOffTimer", pdMS_TO_TICKS(1000),pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(WiFiSwich));
+    wifiOnOffTimer = xTimerCreate("WiFiOnOffTimer", pdMS_TO_TICKS(1000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(WiFiSwich));
     WiFi.onEvent(WiFiEvent);
 
     mqttClient.onConnect(onMqttConnect);
