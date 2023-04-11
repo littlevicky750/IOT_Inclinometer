@@ -1,5 +1,8 @@
-// Add upload to google sheet function
-// Add set wifi name & password from SD card function
+# 1 "C:\\Users\\littl\\AppData\\Local\\Temp\\tmpq7o0a3ng"
+#include <Arduino.h>
+# 1 "C:/Users/littl/HKUST/CHANG Ching Wei - Wonder Construct Team/Arduino codes/DigitalSpiritLevel_V3.4/src/src.ino"
+
+
 #include <Arduino.h>
 #include "SerialDebug.h"
 
@@ -11,8 +14,8 @@ const byte Pin_SwichEN = 1;
 const byte Pin_Button0 = Pin_Button_Wakeup;
 const byte Pin_Button1 = 7;
 const byte Pin_Button2 = 6;
-const byte Pin_I2C_SDA = 8; // Default
-const byte Pin_I2C_SCL = 9; // Default
+const byte Pin_I2C_SDA = 8;
+const byte Pin_I2C_SCL = 9;
 const byte Pin_SD_MOSI = 12;
 const byte Pin_SD_MISO = 13;
 const byte Pin_SD_SCK = 14;
@@ -30,27 +33,7 @@ const byte Pin_LED_1_R = 48;
 const byte Pin_LED_0_B = 40;
 const byte Pin_LED_0_G = 41;
 const byte Pin_LED_0_R = 42;
-
-/*
-LED Setting
-LED 0 :
-  R-L - Bat Low Power (1)
-  Y-L - IMU Not Warm Up (2)
-  B-F - IMU Waiting for Stable (2)
-  B-L - IMU Collecting Data (2)
-  G-L - IMU Collect Data Done (2)
-  M-L - RTC Lost Power (0)
-  M-F - RTC Set Time Success (3)
-  W-L - IO-0 Press (4)
-  W-F - RFID Find New (5)
-LED 1 :
-  R-F - Any Other Error (0)
-  G-F - File Save Success / Create New File (1)
-  Y-F - No SD (1)
-LED 0 + 1 :
-  G-F - Working
-*/
-
+# 54 "C:/Users/littl/HKUST/CHANG Ching Wei - Wonder Construct Team/Arduino codes/DigitalSpiritLevel_V3.4/src/src.ino"
 #define RFID_RST IO_RFID_RST
 #define TestVersion false
 #include "LEDFlash.h"
@@ -91,7 +74,17 @@ int LastEdit = 0;
 bool fHaveSD = false;
 bool fSave = false;
 bool doRFID = true;
-
+static void FAST(void *pvParameter);
+static void MAIN(void *pvParameter);
+static void SLOW(void *pvParameter);
+static void Save(void *pvParameter);
+void ButtonChange0();
+void ButtonChange1();
+void ButtonChange2();
+void ButtonUpdate();
+void setup();
+void loop();
+#line 95 "C:/Users/littl/HKUST/CHANG Ching Wei - Wonder Construct Team/Arduino codes/DigitalSpiritLevel_V3.4/src/src.ino"
 static void FAST(void *pvParameter)
 {
   TickType_t xLastWakeTime;
@@ -157,7 +150,7 @@ static void Save(void *pvParameter)
 {
   sdCard.SetPin(Pin_SD_SCK, Pin_SD_MISO, Pin_SD_MOSI, Pin_SD_CS);
   Net_Init();
-  // vTaskDelay(4000);
+
   sdCard.Swich(true);
   TickType_t xLastWakeTime;
   BaseType_t xWasDelayed;
@@ -169,15 +162,15 @@ static void Save(void *pvParameter)
     xWasDelayed = xTaskDelayUntil(&xLastWakeTime, do_WiFi_Send ? 6000 : 3000);
     if (!xWasDelayed)
       Debug.println("[Warning] Task Save Time Out.");
-    // Check SD State and save Debug String every Loop
-    // Create and Save Data to file if fSave = true;
+
+
     String Msg = "";
     String Data = "";
     byte isSDSave = sdCard.Err_SD_Off;
     fHaveSD_pre = fHaveSD;
     if (fSave && Calculate.State == Calculate.Done)
     {
-      // Send Net
+
       Data += "&time=" + Clock.DateTimeStamp("_");
       Data += "&rfid=" + rfid.ID;
       Data += "&standard=" + String(Standard.Standard);
@@ -186,7 +179,7 @@ static void Save(void *pvParameter)
       Data += "&gravity=" + String(imu.Gravity % 3);
       Data += "&sensor_temperature=" + String(imu.SensorTemperature, 2);
       do_WiFi_Send = Net_Send_Measure(Data);
-      // Save Msg
+
       Msg += Clock.DateTimeStamp() + ",";
       Msg += rfid.ID + ",";
       Msg += String(Calculate.ResultAngle[0], 2) + ",";
@@ -202,11 +195,11 @@ static void Save(void *pvParameter)
       do_WiFi_Send = Net_Send_Measure("");
       isSDSave = sdCard.Save("", Msg);
     }
-    //doRFID = (isSDSave == sdCard.SDOK || isSDSave == sdCard.Err_SD_Off);
+
     fHaveSD = (isSDSave == sdCard.SDOK || isSDSave == sdCard.Err_File_Write_Failed);
     if (fHaveSD != fHaveSD_pre)
     {
-      if (fHaveSD) // Check the file when the sd card first detected.
+      if (fHaveSD)
       {
         String Info = sdCard.Read("/Setting.txt");
         Net_Set(Info);
@@ -228,13 +221,13 @@ bool ButPress[3] = {false};
 void ButtonChange0()
 {
   if (digitalRead(Pin_Button0))
-  { // Release
+  {
     Swich.Off_Clock_Stop();
     LED.Set(0, 0, 0, 4);
     ButPress[0] = true;
   }
   else
-  { // Press
+  {
     Swich.Off_Clock_Start();
   }
 }
@@ -280,7 +273,7 @@ void ButtonUpdate()
   }
   switch (oled.Page)
   {
-  case 0: // Main Page
+  case 0:
     if ((ButPress[0] || ButPress[1] || ButPress[2]) && Calculate.State == Calculate.Not_Stable)
     {
       Calculate.Switch(0);
@@ -298,7 +291,7 @@ void ButtonUpdate()
       {
         fSave = false;
       }
-      // rfid.Reset();
+
     }
     if (ButPress[2])
     {
@@ -311,7 +304,7 @@ void ButtonUpdate()
       sdCard.Swich(1);
     }
     break;
-  case 1: // Menu Select Page
+  case 1:
     if (ButtonAdd)
       oled.MenuCursor++;
     if (ButtonMin)
@@ -341,7 +334,7 @@ void ButtonUpdate()
     if (ButtonDown)
       oled.ShowUnit = (oled.ShowUnit + 1) % 3;
     break;
-  case 4: // WiFi Page
+  case 4:
     if (ButPress[0])
       oled.Page = 0;
     if (ButtonMin)
@@ -349,7 +342,7 @@ void ButtonUpdate()
     if (ButtonAdd)
       WiFiChannel(1);
     break;
-  case 5: // SD Card Page
+  case 5:
     if (ButtonUp && sdCard.Cursor > 0)
       sdCard.Cursor--;
     if (ButtonDown && sdCard.Cursor < sdCard.Show.endsWith(".csv") + 1)
@@ -361,7 +354,7 @@ void ButtonUpdate()
     if (ButPress[0] && sdCard.Cursor == 2)
       oled.EasyBlock(sdCard.Show);
     break;
-  case 6: // Clock Page
+  case 6:
     if (Clock.Cursor == -1)
     {
       if (ButPress[0])
@@ -391,11 +384,11 @@ void ButtonUpdate()
       }
     }
     break;
-  case 7: // Battery Page
+  case 7:
     if (ButPress[0])
       oled.Page = 0;
     break;
-  case 8: // Calibration Page
+  case 8:
     switch (imu.CalibrateCheck)
     {
     case -1:
@@ -504,5 +497,5 @@ void setup()
 
 void loop()
 {
-  // put your main code here, to run repeatedly:
+
 }

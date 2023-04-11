@@ -11,14 +11,19 @@
 #define H 1
 #define V 0
 
+#ifndef TestVersion
+#define TestVersion false
+#endif
+
 class OLED
 {
 private:
     int Count = 0;
+    int Rotation = -1;
     void Begin();
     bool isU8G2Begin = false;
     uint8_t I2C_Add = 0x3C;
-    void Menu(int x, int y, bool isH);
+    void Menu();
     void Describe(int x, int y, int w, int h, bool isH);
     void QuickInfo(int x, int y, int w, int h);
     void Main2(int x, int y, int TW, int TH);
@@ -26,8 +31,11 @@ private:
     void Battery(int x, int y, int w, int h, int b);
     void CheckState();
     void Clock();
-    void Save(int x, int y);
-    void Wifi(int x, int y, int Rotation);
+    void Cal();
+    void YesNo(bool isH, bool Select);
+    void Cal_M();
+    void Save();
+    void Wifi();
     int WiFiShow();
     bool Flash(int Due, int Period);
     void Mode();
@@ -63,6 +71,7 @@ public:
     void ShowLowPower();
     void Update();
     void Block(String BlockInfo);
+    void EasyBlock(String BlockInfo);
 };
 
 #endif

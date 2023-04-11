@@ -3,137 +3,177 @@
 
 #include <WiFi.h>
 #include <esp_wifi.h>
-extern "C"
-{
-#include "freertos/FreeRTOS.h"
-#include "freertos/timers.h"
-}
-#include <AsyncMqttClient.h>
+#include <HTTPClient.h>
 #include "SerialDebug.h"
 #include "NetState.h"
+#include <Preferences.h>
+const char *ntpServer = "pool.ntp.org";
+int gmtOffset = 8;
+const int daylightOffset_sec = 0;
+Preferences preferences;
 
-#define WIFI_SSID "GH034"
-#define WIFI_PASSWORD "chenlaoshiniubi"
-// Raspberry Pi Mosquitto MQTT Broker
-#define MQTT_HOST IPAddress(192, 168, 10, 149)
-// For a cloud MQTT broker, type the domain name
-// #define MQTT_HOST "example.com"
-#define MQTT_PORT 1883
-// Temperature MQTT Topic
-char MQTT_PUB_realtime[23] = "esp32_2/wcimu/realtime";
-char MQTT_PUB_measurement[26] = "esp32_2/wcimu/measurement";
-RTC_DATA_ATTR int WiFi_Channel = 2;
+String ssid = "null";                                                                                   // change SSID
+String password = "null";                                                                               // change password
+String sheet_id = "1tF6z2MT1cIY5qWEmZyBdOPa5mv495GyZaV8sPPVWAIk";                                       // change Google Sheet ID
+String GOOGLE_SCRIPT_ID = "AKfycbx94EAb_avqk2NM4sumYtZEbrkhBkzCi_SKkA953yyg8ZSdCcV5u-8aucB-jn0W7Ub8zQ"; // change Google Sheet App Script ID
+
 bool isSendingMeasure = false;
+bool is_First_Connect = false;
+unsigned int ErrorCount = 0;
 
-class MQTTMsgBuffer
+NetState WiFiState;
+
+TimerHandle_t wifiReconnectTimer;
+TimerHandle_t wifiOnOffTimer;
+
+class MsgBuffer
 {
 private:
-    String Msg[5];
+    const unsigned int MsgBufferSize = 10;
+    String Msg[10];
     int C = 0;
     int Start = 0;
 
 public:
+    void print_now()
+    {
+        Serial.println("==================================================");
+        for (int i = 0; i < MsgBufferSize; i++)
+        {
+            if (i == Start)
+                Serial.print(">|");
+            else if (i == C)
+                Serial.print("+|");
+            else
+                Serial.print("||");
+            Serial.println(Msg[i]);
+        }
+    }
+
+    String Take()
+    {
+        return Msg[Start];
+    }
+    void Next()
+    {
+        Msg[Start] = "";
+        Start = (Start + 1) % MsgBufferSize;
+        // print_now();
+    }
     void Add(String &AddMsg)
     {
         if (AddMsg != "")
         {
             Msg[C] = AddMsg;
-            C++;
-            C %= 5;
+            C = (C + 1) % MsgBufferSize;
+            if (C == Start)
+                Next();
+            // print_now();
         }
-    }
-    String Take()
-    {
-        if (Start == C)
-            return "";
-        String Temp = Msg[Start];
-        Msg[Start] = "";
-        Start++;
-        Start %= 5;
-        return Temp;
     }
 };
 
-NetState WiFiState;
-MQTTMsgBuffer MsgBuffer;
+MsgBuffer Net_Send_Msg_Buffer;
 
-AsyncMqttClient mqttClient;
-TimerHandle_t mqttReconnectTimer;
-TimerHandle_t wifiReconnectTimer;
-TimerHandle_t wifiOnOffTimer;
-
-void Net_Send_Realtime(String &Msg)
+void GetNPTTime()
 {
-    if (WiFiState.now == WiFiState.Finish && !isSendingMeasure)
-        WiFiState.SendPackage = mqttClient.publish(MQTT_PUB_realtime, 1, true, Msg.c_str());
+    configTime(gmtOffset * 3600, daylightOffset_sec, ntpServer);
+    delay(10000);
+    struct tm A;
+    getLocalTime(&A);
+    Clock.SetTime(A.tm_year + 1900, A.tm_mon + 1, A.tm_mday, A.tm_hour, A.tm_min, A.tm_sec);
 }
 
-void Net_Send_Measure(String Msg)
+void Net_Signal_Check()
 {
-
-    if (WiFiState.now != WiFiState.Finish)
+    WiFiState.Signal = 4 + (int)WiFi.RSSI() / 32;
+    if (is_First_Connect)
     {
-        MsgBuffer.Add(Msg);
+        delay(1000);
+        GetNPTTime();
+        is_First_Connect = false;
+    }
+}
+
+bool Net_Send(String Data)
+{
+    String urlFinal = "";
+    urlFinal += "https://script.google.com/macros/s/" + GOOGLE_SCRIPT_ID + "/exec?";
+    urlFinal += "id=" + sheet_id;
+    urlFinal += "&sheet=test" + String(WiFiState.Channel);
+    urlFinal += Data;
+    // Serial.print("POST data to spreadsheet:");
+    // Serial.println(urlFinal);
+    HTTPClient http;
+    http.begin(urlFinal.c_str());
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+    // Check response from Apps script
+    int httpCode = http.GET();
+    if (httpCode > 0)
+    {
+        String payload = http.getString();
+        int Get_return_id = payload.indexOf("return");
+        int Get_return = atoi(payload.substring(Get_return_id + 8).c_str());
+        if (Get_return_id == -1 || Get_return != 1)
+        {
+            Debug.print("[WiFi] Data Upload Failed >>");
+            Debug.println(payload);
+            http.end();
+            return false;
+        }
+    }
+    http.end();
+    return true;
+}
+
+bool Net_Send_Measure(String Data)
+{
+    if (Net_Send_Msg_Buffer.Take() == "" && Data == "")
+    {
+        return false;
+    }
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        Net_Send_Msg_Buffer.Add(Data);
+        return false;
+    }
+    if (Net_Send_Msg_Buffer.Take() != "")
+    {
+        if (Net_Send(Net_Send_Msg_Buffer.Take()))
+            Net_Send_Msg_Buffer.Next();
+        else
+        {
+            ErrorCount++;
+            if (ErrorCount > 5)
+            {
+                Net_Send_Msg_Buffer.Next();
+                ErrorCount = 0;
+            }
+        }
+        Net_Send_Msg_Buffer.Add(Data);
     }
     else
     {
-        isSendingMeasure = true;
-        String Temp = MsgBuffer.Take();
-        while (Temp != "")
-        {
-            WiFiState.SendPackage = mqttClient.publish(MQTT_PUB_measurement, 1, true, Temp.c_str());
-            Temp = MsgBuffer.Take();
-            delay(1000);
-        }
-        if (Msg != "")
-        {
-            WiFiState.SendPackage = mqttClient.publish(MQTT_PUB_measurement, 1, true, Msg.c_str());
-            delay(1000);
-        }
-        isSendingMeasure = false;
+        if (!Net_Send(Data))
+            Net_Send_Msg_Buffer.Add(Data);
     }
-}
-
-void onMqttConnect(bool sessionPresent)
-{
-    Debug.println("[MQTT] Connected to MQTT. ");
-    WiFiState.now = WiFiState.Finish;
-    WiFiState.Signal = 1;
-    Net_Send_Measure("");
-    LED.Set(1, LED.G, 20, 1);
-}
-
-void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
-{
-    if (WiFiState.now == WiFiState.Finish)
-        Debug.println("[MQTT] Disconnected from MQTT.");
-    WiFiState.Signal = 0;
-    if (WiFi.isConnected())
-    {
-        xTimerStart(mqttReconnectTimer, 0);
-        WiFiState.now = WiFiState.ConnectingMqtt;
-    }
-    LED.Set(1, 0, 0, 1);
-}
-
-void onMqttPublish(uint16_t packetId)
-{
-    if (WiFiState.Signal != 1 && packetId - WiFiState.SendPackage > WiFiState.SignalScale[WiFiState.Signal - 2])
-        WiFiState.Signal -= 1;
-    else if (packetId - WiFiState.SendPackage < WiFiState.SignalScale[WiFiState.Signal - 1])
-        WiFiState.Signal += 1;
+    return true;
 }
 
 void connectToWifi()
 {
-    Serial.println("Connecting to Wi-Fi...");
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    //Serial.println("Connecting to Wi-Fi...");
+    WiFi.begin(ssid.c_str(), password.c_str());
 }
 
-void connectToMqtt()
+void reconnectToWiFi()
 {
-    Serial.println("Connecting to MQTT...");
-    mqttClient.connect();
+    if (WiFiState.now == WiFiState.Connected)
+    {
+        WiFi.disconnect();
+    }
+    xTimerStart(wifiReconnectTimer, 0);
 }
 
 void WiFiEvent(WiFiEvent_t event)
@@ -153,7 +193,6 @@ void WiFiEvent(WiFiEvent_t event)
         break;
     case SYSTEM_EVENT_STA_STOP: // 3
         WiFiState.now = WiFiState.Off;
-        xTimerStop(mqttReconnectTimer, 0);
         xTimerStop(wifiReconnectTimer, 0);
         Debug.println("[WiFi] Wifi Off.");
         break;
@@ -162,19 +201,18 @@ void WiFiEvent(WiFiEvent_t event)
         WiFiState.now = WiFiState.ConnectingWifi;
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED: // 5
-        if (WiFiState.now >= WiFiState.ConnectingMqtt)
+        if (WiFiState.now >= WiFiState.Connected)
             Debug.println("[WiFi] Wifi disconnect.");
         if (WiFiState.now != WiFiState.Off)
         {
             WiFiState.now = WiFiState.On;
-            xTimerStop(mqttReconnectTimer, 0); // ensure we don't reconnect to MQTT while reconnecting to Wi-Fi
             xTimerStart(wifiReconnectTimer, 0);
         }
         break;
     case SYSTEM_EVENT_STA_GOT_IP: // 7
         Debug.println("[WiFi] Wifi connected. IP Address: " + String(WiFi.localIP(), HEX));
-        xTimerStart(mqttReconnectTimer, 0);
-        WiFiState.now = WiFiState.ConnectingMqtt;
+        WiFiState.now = WiFiState.Connected;
+        is_First_Connect = true;
         break;
     }
 }
@@ -201,39 +239,69 @@ void WiFiChannel(int k)
             xTimerStart(wifiOnOffTimer, 0);
         if (WiFiState.Channel != 0)
         {
-            char A = "012345"[WiFiState.Channel];
-            MQTT_PUB_realtime[6] = A;
-            MQTT_PUB_measurement[6] = A;
-            Serial.println(MQTT_PUB_realtime);
-            WiFi_Channel = WiFiState.Channel;
+            preferences.begin("my-app", false);
+            preferences.putInt("WiFiChannel", WiFiState.Channel);
+            preferences.end();
         }
     }
 }
 
 void Net_Init()
 {
-    WiFiState.Channel = WiFi_Channel;
-    char A = "012345"[WiFiState.Channel];
-    MQTT_PUB_realtime[6] = A;
-    MQTT_PUB_measurement[6] = A;
+    preferences.begin("my-app", false);
+    WiFiState.Channel = preferences.getInt("WiFiChannel", 1);
+    preferences.end();
     WiFi.disconnect(true);
     // pdFALSE : timer will be a one-shot timer and enter the dormant state after it expires.
-    // ID = 0 : make sure "Connect to Wifi" and "Connect to MTQQ" won't execute at the same time and cause crashing.
+    // ID = 0 : make sure task won't execute at the same time and cause crashing.
     // Timer Call Back will run in the core same as Net_Init was called.
-    mqttReconnectTimer = xTimerCreate("mqttTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToMqtt));
     wifiReconnectTimer = xTimerCreate("wifiTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToWifi));
     wifiOnOffTimer = xTimerCreate("WiFiOnOffTimer", pdMS_TO_TICKS(1000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(WiFiSwich));
     WiFi.onEvent(WiFiEvent);
-
-    mqttClient.onConnect(onMqttConnect);
-    mqttClient.onDisconnect(onMqttDisconnect);
-    // mqttClient.onSubscribe(onMqttSubscribe);
-    // mqttClient.onUnsubscribe(onMqttUnsubscribe);
-    mqttClient.onPublish(onMqttPublish);
-    mqttClient.setServer(MQTT_HOST, MQTT_PORT);
-    // If your broker requires authentication (username and password), set them below
-    // mqttClient.setCredentials("REPlACE_WITH_YOUR_USER", "REPLACE_WITH_YOUR_PASSWORD");
     connectToWifi();
 }
 
+void Net_Set(String Info)
+{
+    if (Info != "")
+    {
+        String title[5] = {"ssid=", "password=", "script_id=", "sheet_id=", "TimeZone=GMT+"};
+        String Info_Cut[5];
+        bool Info_Error = false;
+        for (int i = 0; i < 5; i++)
+        {
+            int Info_Start = Info.indexOf(title[i]);
+            int Info_End = Info.substring(Info_Start).indexOf("\n");
+            if (Info_Start == -1)
+                Info_Cut[i] == "";
+            else if (Info_End == -1)
+                Info_Cut[i] = Info.substring(Info_Start + title[i].length());
+            else
+                Info_Cut[i] = Info.substring(Info_Start + title[i].length(), Info_End + Info_Start - 1);
+        }
+        if (!Info_Error)
+        {
+            if (ssid != Info_Cut[0] || password != Info_Cut[1])
+            {
+                ssid = Info_Cut[0];
+                password = Info_Cut[1];
+                reconnectToWiFi();
+            }
+            if (Info_Cut[2] != "")
+                GOOGLE_SCRIPT_ID = Info_Cut[2];
+            if (Info_Cut[3] != "")
+                sheet_id = Info_Cut[3];
+            if (Info_Cut[4] != "")
+            {
+                int NewTime = atoi(Info_Cut[4].c_str());
+                if (NewTime != gmtOffset)
+                {
+                    gmtOffset = NewTime;
+                    WiFiState.GMT = NewTime;
+                    GetNPTTime();
+                }
+            }
+        }
+    }
+}
 #endif
