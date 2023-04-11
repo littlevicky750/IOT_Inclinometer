@@ -30,7 +30,11 @@ public:
             delay(1);
         }
         if (Count != 0)
-            Percent = ((Sum / Count + 1.0 - 3100.0) / 350.0 * 100.0 + 0.5);
+        {
+            Percent = (((float)Sum / Count + 1.0 - 2170.0)  * 100.0/ 350.0 + 0.5);
+            Percent = min(max(Percent,0),100);
+        }
+            
     }
 };
 

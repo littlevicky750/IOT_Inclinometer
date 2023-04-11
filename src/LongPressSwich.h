@@ -8,7 +8,6 @@
 #include "LEDFlash.h"
 #include "OLED.h"
 #include "Battery.h"
-#include "Driver/adc.h"
 RTC_DATA_ATTR int bootCount = -1;
 
 class LongPressSwich
@@ -29,7 +28,6 @@ public:
     {
         esp_sleep_enable_ext0_wakeup(WakeUpPin, 0);
         bootCount++;
-
         SWPin = Swich_Pin;
         pinMode(SWPin, OUTPUT);
         digitalWrite(SWPin, HIGH);
@@ -37,9 +35,10 @@ public:
         if (bootCount == 0)
         {
             oled.Clear();
+            Wire.end();
+            digitalWrite(SWPin, LOW);
             esp_deep_sleep_start();
         }
-
         // Setting
         Serial.setRxBufferSize(256);
         Serial.begin(115200);
@@ -98,9 +97,11 @@ public:
         else if (millis() - OffClock > 3000)
             PressSleep = true;
         else
+        {
             pLED->Set(0, pLED->W, 1, 4);
-
-        bool TimeOffSleep = (millis() - *LastTriggure > 5 * 60 * 1000) && (OffClock == 0);
+            pLED->Update();
+        }
+        bool TimeOffSleep = ((millis() - *LastTriggure > 5 * 60 * 1000) && (OffClock == 0) && millis() > 10 * 60 * 1000);
         bool LowPowerOff = (pBattery->Percent < 0);
 
         if (!PressSleep && !TimeOffSleep && !LowPowerOff)
@@ -129,7 +130,7 @@ public:
         }
         if (PressSleep || TimeOffSleep || LowPowerOff)
         {
-            Debug.println("[Battery] Battery "+String(pBattery->Percent)+" %");
+            Debug.println("[Battery] Battery " + String(pBattery->Percent) + " %");
             int ForShow = millis();
             if (pSD)
             {
@@ -141,7 +142,7 @@ public:
             {
                 if (TimeOffSleep)
                 {
-                    if (digitalRead(ButPin)==0)
+                    if (digitalRead(ButPin) == 0)
                     {
                         *LastTriggure = millis();
                         return;
@@ -154,8 +155,14 @@ public:
             {
                 // Wait until release Button
             }
-            adc_power_off();
             esp_wifi_stop();
+
+            Wire.end();
+            SPI.end();
+            Serial.end();
+            pLED->Set(0, pLED->W, 1, 4);
+            pLED->Set(1, pLED->W, 1, 4);
+            pLED->Update();
             digitalWrite(SWPin, LOW);
             Serial.println("Sleep");
             esp_deep_sleep_start();

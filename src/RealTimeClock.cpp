@@ -275,18 +275,17 @@ String RealTimeClock::DateStamp(String NowSet, String Format)
   if (D2 != -1)
   {
     dtostrf(T.day(), 2, 0, S);
-    if(T.day()<10)
+    if (T.day() < 10)
       S[0] = '0';
     for (int i = 0; i < 2; i++)
       Str.setCharAt(D2 + i, S[i]);
-    
   }
   if (W6 != -1)
   {
     switch (T.dayOfTheWeek())
     {
     case 1:
-     SS = "Monday";
+      SS = "Monday";
       break;
     case 2:
       SS = "Tuesday";
@@ -307,7 +306,7 @@ String RealTimeClock::DateStamp(String NowSet, String Format)
       SS = "Sunday";
       break;
     }
-    Str = Str.substring(0,W6) + SS + Str.substring(W6+6);
+    Str = Str.substring(0, W6) + SS + Str.substring(W6 + 6);
   }
   else if (W3 != -1)
   {
@@ -385,7 +384,7 @@ String RealTimeClock::DateStamp(String NowSet, String Format)
   else if (M2 != -1)
   {
     dtostrf(T.month(), 2, 0, S);
-    if(T.month()<10)
+    if (T.month() < 10)
       S[0] = '0';
     for (int i = 0; i < 2; i++)
       Str.setCharAt(M2 + i, S[i]);
@@ -396,6 +395,11 @@ String RealTimeClock::DateStamp(String NowSet, String Format)
 String RealTimeClock::DateTimeStamp()
 {
   return (DateStamp("now", "YMD", "/", 4) + " " + TimeStamp());
+}
+
+String RealTimeClock::DateTimeStamp(String con)
+{
+  return (DateStamp("now", "YMD", "/", 4) + con + TimeStamp());
 }
 
 char RealTimeClock::RTC_State()
@@ -550,4 +554,20 @@ DateTime RealTimeClock::TimeSpanYearMonth(DateTime T, int addYear, int addMonth)
     MonthOperator = 12;
   }
   return DateTime(YearOperator, MonthOperator, T.day(), T.hour(), T.minute(), T.second());
+}
+
+void RealTimeClock::SetTime(int Year, int Month, int Day, int hour, int minute, int second)
+{
+  DateTime D(Year, Month, Day, hour, minute, second);
+  if (RtcBegin)
+  {
+    rtc.adjust(D);
+  }
+  else
+  {
+    CompileTime = D;
+  }
+  update();
+  Inrtc.setTime(now.unixtime());
+  Debug.println("[Clock] Auto Adjust Time. now = " + DateTimeStamp());
 }
