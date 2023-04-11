@@ -65,6 +65,22 @@ byte SDCard::Save(String FolderName, String &SaveString)
   }
 }
 
+String SDCard::Read(String FileName)
+{
+  if (SD.exists(FileName))
+  {
+    File NewFile = SD.open(FileName, FILE_READ);
+    String ReadString = NewFile.readString();
+    NewFile.close();
+    ReadString.replace(" ","");
+    return ReadString;
+  }
+  else
+  {
+    return "";
+  }
+}
+
 void SDCard::CheckSaveString(String &SaveString)
 {
   if (SaveString.length() > 16384)
@@ -80,10 +96,11 @@ void SDCard::CheckSaveString(String &SaveString)
 
 void SDCard::SetPin(byte sck, byte miso, byte mosi, byte ss)
 {
+  SSPin = ss;
+  pinMode(SSPin, OUTPUT);
+  digitalWrite(SSPin,HIGH);
   spi = new SPIClass();
   spi->begin(sck, miso, mosi, ss);
-  SSPin = ss;
-  pinMode(SSPin, INPUT_PULLUP);
 }
 
 bool SDCard::WriteFile(String SaveString)
@@ -195,7 +212,7 @@ void SDCard::Swich()
   CheckCount = SwichMode - 1;
   Debug.print("[SD] Save Function Swich ");
   Debug.println(String(SwichMode));
-  Show = SwichMode ? DefaltShow :"Function OFF";
+  Show = SwichMode ? DefaltShow : "Function OFF";
 }
 
 void SDCard::Swich(bool State)

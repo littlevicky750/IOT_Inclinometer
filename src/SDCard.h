@@ -19,6 +19,7 @@ public:
   void Swich(bool State);
   void Swich();
   byte Save(String FolderName, String &SaveString);
+  String Read(String FileName);
   byte SDOK = 0;
   byte Err_SD_Off = 1;
   byte Err_SD_begin_Failed = 2;
@@ -28,8 +29,9 @@ public:
   byte Err_File_Write_Failed = 6;
   String path;
   String DebugString = "";
-  String Show = "Waiting...";
+  String Show = "Loading...";
   int LastCheck = 0;
+  int Cursor = 0;
 
 private:
   SPIClass *spi = NULL;

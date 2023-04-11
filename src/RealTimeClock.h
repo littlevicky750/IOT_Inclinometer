@@ -13,6 +13,7 @@ public:
   String DateStamp(String str, int YearDigit);
   String DateStamp(String NowSet, String Format);
   String DateTimeStamp();
+  String DateTimeStamp(String con);
   char RTC_State(); 
   bool RtcBegin = true;
   bool RtcLostPower = false;
@@ -25,6 +26,7 @@ public:
 
   void ResetUserSetTimeBuffer();
   void UserSetTime(int Do);
+  void SetTime(int Year, int Month, int Day, int hour, int minute, int second);
   DateTime TimeSpanYearMonth(DateTime T, int addYear, int addMonth);
   int Cursor = -1;
 
