@@ -77,7 +77,7 @@ public:
                 if (Close[i][j] != 0)
                     Set(i, 0, 0, j);
             }
-            if (P > 0 && count % Count[i][P] == 0)
+            if (P > 0 && count % Count[i][P] == i)
             {
                 if (Pin[i][0] != 0)
                     digitalWrite(Pin[i][0], !(Color[i][P] % 2 == 1));
@@ -85,6 +85,7 @@ public:
                     digitalWrite(Pin[i][1], !(Color[i][P] % 4 / 2 == 1));
                 if (Pin[i][2] != 0)
                     digitalWrite(Pin[i][2], !(Color[i][P] / 4 == 1));
+                
                 if (Close[i][P] == 1)
                     Set(i, 0, 0, P);
                 else if (Close[i][P] != 0)
