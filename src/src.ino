@@ -1,5 +1,7 @@
 // Add upload to google sheet function
 // Add set wifi name & password from SD card function
+// Rewrite Calibrate Button Select
+// Add Full Cal Z
 #include <Arduino.h>
 #include "SerialDebug.h"
 
@@ -166,7 +168,7 @@ static void Save(void *pvParameter)
   bool fHaveSD_pre = fHaveSD;
   for (;;)
   {
-    xWasDelayed = xTaskDelayUntil(&xLastWakeTime, do_WiFi_Send ? 6000 : 3000);
+    xWasDelayed = xTaskDelayUntil(&xLastWakeTime, do_WiFi_Send ? 10000 : 3000);
     if (!xWasDelayed)
       Debug.println("[Warning] Task Save Time Out.");
     // Check SD State and save Debug String every Loop
@@ -174,9 +176,21 @@ static void Save(void *pvParameter)
     String Msg = "";
     String Data = "";
     byte isSDSave = sdCard.Err_SD_Off;
-    fHaveSD_pre = fHaveSD;
     if (fSave && Calculate.State == Calculate.Done)
     {
+      // Save Msg
+      Msg += Clock.DateTimeStamp() + ",";
+      Msg += rfid.ID + ",";
+      Msg += String(Calculate.ResultAngle[0], 2) + ",";
+      Msg += String(Calculate.ResultAngle[1], 2) + ",";
+      Msg += String(Standard.Standard)+ ",";
+      Msg += String(imu.Gravity)+ ",";
+      Msg += String(imu.SensorTemperature)+ "\n";
+      isSDSave = sdCard.Save("/" + Clock.DateStamp("", 4), Msg);
+      fSave = false;
+      LED.Set(1, (isSDSave == sdCard.SDOK) ? LED.G : LED.Y, 2, 5, 3);
+      if (isSDSave == sdCard.SDOK)
+        Calculate.Switch(false);
       // Send Net
       Data += "&time=" + Clock.DateTimeStamp("_");
       Data += "&rfid=" + rfid.ID;
@@ -186,38 +200,40 @@ static void Save(void *pvParameter)
       Data += "&gravity=" + String(imu.Gravity % 3);
       Data += "&sensor_temperature=" + String(imu.SensorTemperature, 2);
       do_WiFi_Send = Net_Send_Measure(Data);
-      // Save Msg
-      Msg += Clock.DateTimeStamp() + ",";
-      Msg += rfid.ID + ",";
-      Msg += String(Calculate.ResultAngle[0], 2) + ",";
-      Msg += String(Calculate.ResultAngle[1], 2) + "\n";
-      isSDSave = sdCard.Save("/" + Clock.DateStamp("", 4), Msg);
-      fSave = false;
-      LED.Set(1, (isSDSave == sdCard.SDOK) ? LED.G : LED.Y, 2, 5, 3);
-      if (isSDSave == sdCard.SDOK)
-        Calculate.Switch(false);
     }
     else
     {
       do_WiFi_Send = Net_Send_Measure("");
       isSDSave = sdCard.Save("", Msg);
     }
-    //doRFID = (isSDSave == sdCard.SDOK || isSDSave == sdCard.Err_SD_Off);
+    // doRFID = (isSDSave == sdCard.SDOK || isSDSave == sdCard.Err_SD_Off);
     fHaveSD = (isSDSave == sdCard.SDOK || isSDSave == sdCard.Err_File_Write_Failed);
-    if (fHaveSD != fHaveSD_pre)
+    if (imu.fWarmUp == 100)
     {
-      if (fHaveSD) // Check the file when the sd card first detected.
+      if (fHaveSD != fHaveSD_pre)
       {
-        String Info = sdCard.Read("/Setting.txt");
-        Net_Set(Info);
-        imu.ExpertMode = (Info.indexOf("Full_Cal_Password=123456789") != -1);
+        if (fHaveSD) // Check the file when the sd card first detected.
+        {
+          String Info = sdCard.Read("/Setting.txt");
+          if (Info.indexOf("Full_Cal_Password=123456789") != -1)
+          {
+            imu.ExpertMode = true;
+            if (!TestVersion)
+            {
+              Debug.Setup(sdCard);
+              Debug.printOnTop("========================Expert_Mode_On========================");
+            }
+          }
+          Net_Set(Info);
+        }
+        else
+        {
+          imu.ExpertMode = false;
+          imu.Cursor = 0;
+          imu.CursorStart = 0;
+        }
       }
-      else
-      {
-        imu.ExpertMode = false;
-        imu.Cursor = 0;
-        imu.CursorStart = 0;
-      }
+      fHaveSD_pre = fHaveSD;
     }
     LED.Set(1, LED.Y, (fHaveSD) ? 0 : ((isSDSave == sdCard.Err_SD_Off) ? 30 : 3), 3);
   }
@@ -281,34 +297,47 @@ void ButtonUpdate()
   switch (oled.Page)
   {
   case 0: // Main Page
-    if ((ButPress[0] || ButPress[1] || ButPress[2]) && Calculate.State == Calculate.Not_Stable)
-    {
-      Calculate.Switch(0);
-      break;
-    }
     if (ButPress[0])
     {
-      oled.Page = 1;
-      oled.MenuCursor = 0;
-    }
-    if (ButPress[1] && imu.fWarmUp == 100)
-    {
-      Calculate.Switch((Calculate.State != Calculate.Not_Stable));
-      if (Calculate.State == Calculate.Not_Stable)
+      if (Calculate.State == Calculate.Not_Stable || Calculate.State == Calculate.Done || fSave)
       {
+        Calculate.Switch(0);
         fSave = false;
       }
+      else
+      {
+        oled.Page = 1;
+        oled.MenuCursor = 0;
+      }
+    }
+    else if (ButPress[1] && imu.fWarmUp == 100)
+    {
+      Calculate.Switch((Calculate.State != Calculate.Not_Stable) && (Calculate.State != Calculate.Done));
+      fSave = false;
       // rfid.Reset();
     }
-    if (ButPress[2])
+    else if (ButPress[2])
     {
+      sdCard.Swich(1);
       if (imu.fWarmUp == 100)
       {
-        fSave = true;
-        if (Calculate.State != Calculate.Done || !fHaveSD)
-          Calculate.Switch(1);
+        if (Calculate.State == Calculate.Not_Stable)
+        {
+          Calculate.Switch(0);
+          fSave = false;
+        }
+        else if (fSave)
+        {
+          Calculate.Switch(0);
+          fSave = false;
+        }
+        else
+        {
+          fSave = true;
+          if (Calculate.State != Calculate.Done)
+            Calculate.Switch(1);
+        }
       }
-      sdCard.Swich(1);
     }
     break;
   case 1: // Menu Select Page
@@ -319,6 +348,7 @@ void ButtonUpdate()
     oled.MenuCursor %= (imu.fWarmUp == 100) ? 8 : 7;
     if (ButPress[0])
     {
+      oled.Page = (oled.MenuCursor == 0) ? 0 : oled.MenuCursor + 1;
       if (oled.MenuCursor == 0)
         oled.Page = 0;
       else
@@ -396,45 +426,21 @@ void ButtonUpdate()
       oled.Page = 0;
     break;
   case 8: // Calibration Page
-    switch (imu.CalibrateCheck)
+    if (imu.CalibrateCheck == -1 && imu.Cursor == 0 && ButPress[0])
+      oled.Page = 1;
+    else
     {
-    case -1:
-      if (ButtonMin && imu.Cursor > 0)
-        imu.Cursor--;
-      if (ButtonAdd && imu.Cursor < ((imu.ExpertMode) ? 3 : 2))
-        imu.Cursor++;
-      if (ButPress[0] && imu.Cursor == 0)
-        oled.Page = 0;
-      if (ButPress[0] && imu.Cursor != 0)
-        imu.CalibrateCheck = 0;
-
-      imu.CursorStart = max(min(imu.Cursor, imu.CursorStart), imu.Cursor - 2);
-      imu.YesNo = (imu.Cursor == 3);
-      break;
-    case 0:
-      if (imu.Cursor == 3 && (imu.Gravity > 2 || imu.FullCalComplete[imu.Gravity]))
-      {
-        if (ButPress[0])
-          imu.CalStop();
-      }
-      else
-      {
-        if (ButtonUp)
-          imu.YesNo = false;
-        if (ButtonDown)
-          imu.YesNo = true;
-        if (ButPress[0] && imu.YesNo)
-          imu.CalibrateCheck = true;
-        if (ButPress[0] && !imu.YesNo)
-          imu.CalStop();
-      }
-      break;
-    case 1:
-      if (ButPress[0] || ButPress[1] || ButPress[2])
-        imu.CalStop();
-      break;
+      if (ButPress[0])
+        imu.CalibrateSelect(0);
+      if (ButtonUp)
+        imu.CalibrateSelect(1);
+      if (ButtonDown)
+        imu.CalibrateSelect(2);
+      if (imu.CalibrateCheck == 0 && ButtonMin)
+        imu.CalibrateSelect(3);
+      if (imu.CalibrateCheck == 0 && ButtonAdd)
+        imu.CalibrateSelect(4);
     }
-
     imu.Calibrate();
     if (imu.CalibrateCheck == 2)
     {
@@ -477,6 +483,7 @@ void setup()
   Calculate.pLED = &LED;
   rfid.pLED = &LED;
   imu.pLED = &LED;
+  imu.fWarmUpTime = &LastEdit;
   oled.ClockShow = &Clock;
   oled.Bat = &Bat.Percent;
   oled.ID = &rfid.ID;

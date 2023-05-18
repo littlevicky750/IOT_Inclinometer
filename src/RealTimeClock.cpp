@@ -559,15 +559,16 @@ DateTime RealTimeClock::TimeSpanYearMonth(DateTime T, int addYear, int addMonth)
 void RealTimeClock::SetTime(int Year, int Month, int Day, int hour, int minute, int second)
 {
   DateTime D(Year, Month, Day, hour, minute, second);
+  int TimeDifference = D.unixtime() - now.unixtime();
   if (RtcBegin)
   {
     rtc.adjust(D);
   }
   else
   {
-    CompileTime = D;
+    CompileTime = DateTime(D.unixtime() - millis() / 1000);
   }
-  update();
   Inrtc.setTime(now.unixtime());
-  Debug.println("[Clock] Auto Adjust Time. now = " + DateTimeStamp());
+  now = D;
+  Debug.println("[Clock] Auto Adjust Time. Offset = " + String(TimeDifference) + " s. now = " + DateTimeStamp());
 }

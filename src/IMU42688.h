@@ -9,7 +9,7 @@
 #endif
 
 #ifndef TestVersion
-#define TestVersion false
+#define TestVersion true
 #endif
 
 class IMU42688
@@ -22,8 +22,19 @@ private:
     float StartCalA[3];
     float SumCalA[3];
     float FullCalAngle[6] = {0.0};
-    unsigned int WarmUpTime = (TestVersion) ? 5000 : 60000;
+    float CalibrateCollect[6][10] = {0.0};
+    //float CalCollectedAngle[3][100] = {0};
+    //bool CalDevCount[100] = {1};
+    //const int CalCount = 100;
     void CollectCalData();
+    void QuickCalibrate();
+    void FullCalibrate();
+    void FullCalibrate_Z();
+    float Avg_in_2StDev(float *Angle, bool *Count, int length);
+    float SensorTemperatureCollect[2] = {0};
+    float StartTemperature = 25;
+    float WarmUpTemperature = 39;
+    int WarmUpCount = 0;
 
 public:
     float Angle[3] = {0, 0, 0};
@@ -41,6 +52,7 @@ public:
     const byte Err_IMU_Cope_Failed = 4;
     byte ErrorCode = Err_IMU_Not_Warm_Up;
     byte fWarmUp;
+    int *fWarmUpTime;
     LEDFlash *pLED;
     void Initialize(byte Rx /*(-1)*/, byte Tx /*(-1)*/);
     byte Update();
@@ -49,16 +61,17 @@ public:
     float getHorizontalFilt();
     float getVerticalFilt();
     void Calibrate();
-    void QuickCalibrate();
-    void FullCalibrate();
+    void CalibrateSelect(byte Do);
     void CalStop();
     int CalibrateCheck = -1; // -1:Menu, 0:Select Yes No, 1:Collecting Data, 2: Finish
     int CalibrateCount = 0;
+    int CalibrateCollectCount[6] = {0};
+    byte CalAvgNum = 50;
     int Cursor = 0;
     int CursorStart = 0;
     int FullCalStep = 0;
     bool YesNo = false;
-    bool FullCalComplete[3] = {false};
+    bool FullCalComplete[6] = {false};
     bool ExpertMode = false;
 };
 

@@ -101,7 +101,7 @@ public:
             pLED->Set(0, pLED->W, 1, 4);
             pLED->Update();
         }
-        bool TimeOffSleep = ((millis() - *LastTriggure > 5 * 60 * 1000) && (OffClock == 0) && millis() > 10 * 60 * 1000);
+        bool TimeOffSleep = ((millis() - *LastTriggure > 5 * 60 * 1000) && (OffClock == 0) && millis() > 15 * 60 * 1000 && !TestVersion);
         bool LowPowerOff = (pBattery->Percent < 0);
 
         if (!PressSleep && !TimeOffSleep && !LowPowerOff)

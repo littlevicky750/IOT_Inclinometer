@@ -66,7 +66,7 @@ void OLED::Initialize()
     u8g2.clearBuffer();
     char S[19] = "IoT  Inclinometer";
     u8g2.drawStr(64 - u8g2.getStrWidth(S) / 2, 30, S);
-    char S1[17] = "V 3.4";
+    char S1[17] = "V 3.5";
     u8g2.drawStr(64 - u8g2.getStrWidth(S1) / 2, 48, S1);
     u8g2.sendBuffer();
 }
@@ -343,7 +343,7 @@ void OLED::Menu()
                 u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, SDOFF24x24);
             else if (*SDState == false)
                 u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, NOSD24x24);
-            else if (*fSave)
+            else if (*fSave == true)
                 u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, SDSave24x24);
             else
                 u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, SD24x24);
@@ -752,7 +752,7 @@ void OLED::Cal_M()
     u8g2.drawStr(0, 11, "Calibration");
     u8g2.drawBox(0, 13, 128, 2);
     u8g2.drawBox(0, 17 + 16 * (imu->Cursor - imu->CursorStart), 128, 14);
-    char Cal_Mode[4][16] = {"Back", "Calibrate", "Clear", "Exp Cal"};
+    char Cal_Mode[5][16] = {"Back", "Calibrate", "Clear", "Exp Cal", "Z Dir Exp Cal"};
     for (int i = 0; i < 3; i++)
     {
         w = u8g2.getStrWidth(Cal_Mode[i + imu->CursorStart]);
@@ -767,16 +767,47 @@ void OLED::Cal()
     if (imu->CalibrateCheck == 0)
     {
         String Question;
+        bool ShowYesNo = true;
+        int line3 = 1;
         if (imu->Cursor == 1)
             Question = "Ready to Calibrate?";
         else if (imu->Cursor == 2)
             Question = "Sure to Clear Data?";
         else if (imu->Cursor == 3)
         {
+            line3 = 0;
             Question = "g = " + String(imu->Gravity);
-            if (!(imu->Gravity > 2))
-                Question += (imu->FullCalComplete[imu->Gravity]) ? ", Complete." : ", Ready?";
+            ShowYesNo = false;
+            if (imu->Gravity < 3)
+            {
+                if (imu->FullCalComplete[imu->Gravity])
+                    Question += ", Complete.";
+                else
+                {
+                    Question += ", Ready?";
+                    ShowYesNo = true;
+                }
+            }
         }
+        else if (imu->Cursor == 4)
+        {
+            line3 = 0;
+            Question = "g = " + String(imu->Gravity);
+            ShowYesNo = false;
+            if (imu->Gravity % 3 == 0)
+            {
+                if (imu->FullCalComplete[imu->Gravity])
+                    Question += ", Complete.";
+                else
+                {
+                    Question += ", Ready?";
+                    Question += "(" + String(imu->CalibrateCollectCount[imu->Gravity]+1) + ")";
+                    line3 = (imu->CalibrateCollectCount[imu->Gravity] > 8) ? 4 : 3;
+                    ShowYesNo = true;
+                }
+            }
+        }
+
         if (Rotation % 3 != 0)
         {
             int w = 0;
@@ -791,18 +822,18 @@ void OLED::Cal()
             int w = 0;
             int l1 = Question.substring(7).indexOf(" ") + 8;
             u8g2.drawStr(0, 15, Question.substring(0, l1 - 1).c_str());
-            for (int i = 0; i < Question.substring(l1).length() - (imu->Cursor != 3); i++)
+            for (int i = 0; i < Question.substring(l1).length() - line3; i++)
             {
                 char a = Question.substring(l1).charAt(i);
                 w -= (a == 'l') ? 2 : 0;
                 u8g2.drawGlyph(w, 35, a);
                 w += (a == ' ' || a == 'l') ? 5 : 7;
             }
-            if (imu->Cursor != 3)
-                u8g2.drawGlyph(0, 55, Question.charAt(Question.length() - 1));
+            if (imu->Cursor !=3)
+                u8g2.drawStr(0, 55, Question.substring(Question.length() - line3).c_str());
         }
 
-        if (imu->Cursor == 3 && (imu->Gravity > 2 || imu->FullCalComplete[imu->Gravity]))
+        if (!ShowYesNo)
         {
             u8g2.drawBox(u8g2.getDisplayWidth() / 2 - 21, u8g2.getDisplayHeight() - 16, 42, 14);
             u8g2.drawFrame(u8g2.getDisplayWidth() / 2 - 23, u8g2.getDisplayHeight() - 18, 46, 18);
@@ -815,21 +846,24 @@ void OLED::Cal()
     {
         for (int i = 1; i < 3; i++)
         {
-            u8g2.drawGlyph(0, 20 * i - 5, 120 + ((imu->Gravity + i) % 3));
-            u8g2.drawGlyph(7, 20 * i - 5, '=');
+            u8g2.drawGlyph(0, 17 * i - 7, 120 + ((imu->Gravity + i) % 3));
+            u8g2.drawGlyph(7, 17 * i - 8, '=');
             char A[8];
             dtostrf(imu->Angle[(imu->Gravity + i) % 3], 7, 3, A);
-            u8g2.drawStr(15, 20 * i - 5, A);
+            u8g2.drawStr(15, 17 * i - 7, A);
         }
+        u8g2.drawGlyph(0, 44, 'T');
+        u8g2.drawGlyph(7, 43, '=');
+        u8g2.drawStr(22, 44, String(imu->SensorTemperature, 1).c_str());
         if (Rotation % 3 != 0)
         {
             u8g2.drawFrame(12, 50, 104, 14);
-            u8g2.drawBox(14, 52, imu->CalibrateCount * 4, 10);
+            u8g2.drawBox(14, 52, imu->CalibrateCount * 100 / imu->CalAvgNum, 10);
         }
         else
         {
             u8g2.drawFrame(5, 100, 54, 14);
-            u8g2.drawBox(7, 102, imu->CalibrateCount * 2, 10);
+            u8g2.drawBox(7, 102, imu->CalibrateCount * 50 / imu->CalAvgNum, 10);
         }
     }
 }
