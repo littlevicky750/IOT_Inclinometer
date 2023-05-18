@@ -176,14 +176,6 @@ void reconnectToWiFi()
     xTimerStart(wifiReconnectTimer, 0);
 }
 
-void WiFiSwich()
-{
-    if (WiFiState.now != WiFiState.Off)
-        esp_wifi_stop();
-    else
-        esp_wifi_start();
-}
-
 void WiFiEvent(WiFiEvent_t event)
 {
     // Wifi Event always work in core 1. Used timer to control connecting event.
@@ -223,6 +215,14 @@ void WiFiEvent(WiFiEvent_t event)
         is_First_Connect = true;
         break;
     }
+}
+
+void WiFiSwich()
+{
+    if (WiFiState.now != WiFiState.Off)
+        esp_wifi_stop();
+    else
+        esp_wifi_start();
 }
 
 void WiFiChannel(int k)

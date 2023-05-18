@@ -72,7 +72,7 @@ String SDCard::Read(String FileName)
     File NewFile = SD.open(FileName, FILE_READ);
     String ReadString = NewFile.readString();
     NewFile.close();
-    ReadString.replace(" ", "");
+    ReadString.replace(" ","");
     return ReadString;
   }
   else
@@ -98,7 +98,7 @@ void SDCard::SetPin(byte sck, byte miso, byte mosi, byte ss)
 {
   SSPin = ss;
   pinMode(SSPin, OUTPUT);
-  digitalWrite(SSPin, HIGH);
+  digitalWrite(SSPin,HIGH);
   spi = new SPIClass();
   spi->begin(sck, miso, mosi, ss);
 }

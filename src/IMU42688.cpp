@@ -66,20 +66,20 @@ byte IMU42688::Update()
         }
 
         // Read Angle and do basic check -----------------------------
-        Gravity_cope = IMU.RecievedIMUData[7];
+        Gravity_cope = IMU.RecievedIMUData[10];
         if (Gravity_cope < 0 || Gravity_cope > 6)
         {
             ErrorCode = Err_IMU_Receive_Data_Error;
             goto NextLoop;
         }
 
-        if (IMU.RecievedIMUData[6] < 10 || IMU.RecievedIMUData[6] > 60)
+        if (IMU.RecievedIMUData[9] < 10 || IMU.RecievedIMUData[9] > 60)
         {
             ErrorCode = Err_IMU_Receive_Data_Error;
             goto NextLoop;
         }
         SensorTemperatureCollect[1] = SensorTemperatureCollect[0];
-        SensorTemperatureCollect[0] = IMU.RecievedIMUData[6];
+        SensorTemperatureCollect[0] = IMU.RecievedIMUData[9];
         SensorTemperature = SensorTemperature * 0.6 + SensorTemperatureCollect[0] * 0.2 + SensorTemperatureCollect[1] * 0.2;
 
         for (size_t i = 0; i < 6; i++)
@@ -111,8 +111,17 @@ byte IMU42688::Update()
         Serial.print(Angle[1], 3);
         Serial.print(", Z : ");
         Serial.print(Angle[2], 3);
+        Serial.print(", T : ");
+        Serial.print(SensorTemperature);
+        Serial.print(", acc1 :");
+        Serial.print(IMU.RecievedIMUData[6]);
+        Serial.print(", acc2 :");
+        Serial.print(IMU.RecievedIMUData[7]);
+        Serial.print(", acc3 :");
+        Serial.print(IMU.RecievedIMUData[8]);
         Serial.print(", g : ");
         Serial.println(Gravity);
+
         //*/
         break;
     NextLoop:
@@ -178,7 +187,6 @@ byte IMU42688::Update()
                 pLED->Set(0, 0, 0, 2);
             }
         }
-        // Serial.println(SensorTemperature);
     }
     return ErrorCode;
 } // end void Update()

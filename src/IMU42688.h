@@ -9,7 +9,7 @@
 #endif
 
 #ifndef TestVersion
-#define TestVersion true
+#define TestVersion false
 #endif
 
 class IMU42688
@@ -33,7 +33,7 @@ private:
     float Avg_in_2StDev(float *Angle, bool *Count, int length);
     float SensorTemperatureCollect[2] = {0};
     float StartTemperature = 25;
-    float WarmUpTemperature = 39;
+    float WarmUpTemperature = 40;
     int WarmUpCount = 0;
 
 public:

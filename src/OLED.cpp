@@ -66,7 +66,7 @@ void OLED::Initialize()
     u8g2.clearBuffer();
     char S[19] = "IoT  Inclinometer";
     u8g2.drawStr(64 - u8g2.getStrWidth(S) / 2, 30, S);
-    char S1[17] = "V 3.5";
+    char S1[17] = "V 3.10";
     u8g2.drawStr(64 - u8g2.getStrWidth(S1) / 2, 48, S1);
     u8g2.sendBuffer();
 }

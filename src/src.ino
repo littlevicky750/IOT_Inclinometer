@@ -1,7 +1,5 @@
 // Add upload to google sheet function
 // Add set wifi name & password from SD card function
-// Rewrite Calibrate Button Select
-// Add Full Cal Z
 #include <Arduino.h>
 #include "SerialDebug.h"
 
@@ -432,6 +430,7 @@ void ButtonUpdate()
       if (imu.CalibrateCheck == 0 && ButtonAdd)
         imu.CalibrateSelect(4);
     }
+
     imu.Calibrate();
     if (imu.CalibrateCheck == 2)
     {
