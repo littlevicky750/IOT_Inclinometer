@@ -374,9 +374,9 @@ void ButtonUpdate()
   case 4: // WiFi Page
     if (ButPress[0])
       oled.Page = 0;
-    if (ButtonUp)
+    if (ButtonMin)
       WiFiChannel(-1);
-    if (ButtonDown)
+    if (ButtonAdd)
       WiFiChannel(1);
     break;
   case 5: // SD Card Page
