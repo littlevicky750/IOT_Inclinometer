@@ -544,9 +544,9 @@ void IMU42688::CalibrateSelect(byte Do)
         }
         break;
     case 1:
-            CalStop();
-            pLED->Set(0, 0, 0, 6);
-            pLED->Set(1, 0, 0, 6);
+        CalStop();
+        pLED->Set(0, 0, 0, 6);
+        pLED->Set(1, 0, 0, 6);
         break;
     }
 }
