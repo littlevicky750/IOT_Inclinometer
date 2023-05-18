@@ -174,7 +174,6 @@ static void Save(void *pvParameter)
     String Msg = "";
     String Data = "";
     byte isSDSave = sdCard.Err_SD_Off;
-    fHaveSD_pre = fHaveSD;
     if (fSave && Calculate.State == Calculate.Done)
     {
       // Save Msg
@@ -229,6 +228,7 @@ static void Save(void *pvParameter)
         imu.Cursor = 0;
         imu.CursorStart = 0;
       }
+      fHaveSD_pre = fHaveSD;
     }
     LED.Set(1, LED.Y, (fHaveSD) ? 0 : ((isSDSave == sdCard.Err_SD_Off) ? 30 : 3), 3);
   }
@@ -342,12 +342,7 @@ void ButtonUpdate()
       oled.MenuCursor += (imu.fWarmUp == 100) ? 7 : 6;
     oled.MenuCursor %= (imu.fWarmUp == 100) ? 8 : 7;
     if (ButPress[0])
-    {
-      if (oled.MenuCursor == 0)
-        oled.Page = 0;
-      else
-        oled.Page = oled.MenuCursor + 1;
-    }
+      oled.Page = (oled.MenuCursor == 0) ? 0 : oled.MenuCursor + 1;
     break;
   case 2:
     if (ButtonUp)

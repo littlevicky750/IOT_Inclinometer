@@ -34,6 +34,7 @@ private:
     float SensorTemperatureCollect[2] = {0};
     float StartTemperature = 25;
     float WarmUpTemperature = 40;
+    int WarmUpCount = 0;
 
 public:
     float Angle[3] = {0, 0, 0};

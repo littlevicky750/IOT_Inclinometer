@@ -163,7 +163,21 @@ byte IMU42688::Update()
             {
                 int fWarmUp_t = pow((SensorTemperature - StartTemperature) / (WarmUpTemperature - StartTemperature), 2) * 100;
                 if (fWarmUp_t > fWarmUp)
+                {
                     fWarmUp = fWarmUp_t;
+                    WarmUpCount = 0;
+                }
+                else
+                {
+                    WarmUpCount++;
+                    if (WarmUpCount > 1000)
+                    {
+                        fWarmUp = 100;
+                        if (fWarmUpTime)
+                            *fWarmUpTime = millis();
+                        pLED->Set(0, 0, 0, 2);
+                    }
+                }
             }
             else
             {

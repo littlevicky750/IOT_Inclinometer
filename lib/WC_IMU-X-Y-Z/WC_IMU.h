@@ -34,7 +34,7 @@ public:
     //Serial Recieve
     void readSerialData(unsigned char rc);
     void parseData();
-    float RecievedIMUData[8];
+    float RecievedIMUData[11];
     boolean newData = false;
     int Gdir;
 private:
@@ -58,7 +58,7 @@ private:
     double gyroX, gyroY, gyroZ;
     bool IMUupdated;
     //Serial Recieve
-    const int numChars = 64;
-    char receivedChars[64];
+    const int numChars = 128;
+    char receivedChars[128];
 };
 #endif
