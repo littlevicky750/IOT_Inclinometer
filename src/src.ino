@@ -1,7 +1,5 @@
 // Add upload to google sheet function
 // Add set wifi name & password from SD card function
-// Rewrite Calibrate Button Select
-// Add Full Cal Z
 #include <Arduino.h>
 #include "SerialDebug.h"
 
@@ -176,6 +174,7 @@ static void Save(void *pvParameter)
     String Msg = "";
     String Data = "";
     byte isSDSave = sdCard.Err_SD_Off;
+    fHaveSD_pre = fHaveSD;
     if (fSave && Calculate.State == Calculate.Done)
     {
       // Save Msg
@@ -183,9 +182,9 @@ static void Save(void *pvParameter)
       Msg += rfid.ID + ",";
       Msg += String(Calculate.ResultAngle[0], 2) + ",";
       Msg += String(Calculate.ResultAngle[1], 2) + ",";
-      Msg += String(Standard.Standard)+ ",";
-      Msg += String(imu.Gravity)+ ",";
-      Msg += String(imu.SensorTemperature)+ "\n";
+      Msg += String(Standard.Standard) + ",";
+      Msg += String(imu.Gravity) + ",";
+      Msg += String(imu.SensorTemperature) + "\n";
       isSDSave = sdCard.Save("/" + Clock.DateStamp("", 4), Msg);
       fSave = false;
       LED.Set(1, (isSDSave == sdCard.SDOK) ? LED.G : LED.Y, 2, 5, 3);
@@ -208,32 +207,28 @@ static void Save(void *pvParameter)
     }
     // doRFID = (isSDSave == sdCard.SDOK || isSDSave == sdCard.Err_SD_Off);
     fHaveSD = (isSDSave == sdCard.SDOK || isSDSave == sdCard.Err_File_Write_Failed);
-    if (imu.fWarmUp == 100)
+    if (fHaveSD != fHaveSD_pre)
     {
-      if (fHaveSD != fHaveSD_pre)
+      if (fHaveSD) // Check the file when the sd card first detected.
       {
-        if (fHaveSD) // Check the file when the sd card first detected.
+        String Info = sdCard.Read("/Setting.txt");
+        if (Info.indexOf("Full_Cal_Password=123456789") != -1)
         {
-          String Info = sdCard.Read("/Setting.txt");
-          if (Info.indexOf("Full_Cal_Password=123456789") != -1)
+          imu.ExpertMode = true;
+          if (!TestVersion)
           {
-            imu.ExpertMode = true;
-            if (!TestVersion)
-            {
-              Debug.Setup(sdCard);
-              Debug.printOnTop("========================Expert_Mode_On========================");
-            }
+            Debug.Setup(sdCard);
+            Debug.printOnTop("========================Expert_Mode_On========================");
           }
-          Net_Set(Info);
         }
-        else
-        {
-          imu.ExpertMode = false;
-          imu.Cursor = 0;
-          imu.CursorStart = 0;
-        }
+        Net_Set(Info);
       }
-      fHaveSD_pre = fHaveSD;
+      else
+      {
+        imu.ExpertMode = false;
+        imu.Cursor = 0;
+        imu.CursorStart = 0;
+      }
     }
     LED.Set(1, LED.Y, (fHaveSD) ? 0 : ((isSDSave == sdCard.Err_SD_Off) ? 30 : 3), 3);
   }
@@ -348,7 +343,6 @@ void ButtonUpdate()
     oled.MenuCursor %= (imu.fWarmUp == 100) ? 8 : 7;
     if (ButPress[0])
     {
-      oled.Page = (oled.MenuCursor == 0) ? 0 : oled.MenuCursor + 1;
       if (oled.MenuCursor == 0)
         oled.Page = 0;
       else
@@ -441,6 +435,7 @@ void ButtonUpdate()
       if (imu.CalibrateCheck == 0 && ButtonAdd)
         imu.CalibrateSelect(4);
     }
+
     imu.Calibrate();
     if (imu.CalibrateCheck == 2)
     {
