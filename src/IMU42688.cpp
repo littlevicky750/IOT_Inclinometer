@@ -26,7 +26,7 @@ void IMU42688::Initialize(byte Rx, byte Tx)
     Serial1.setRxBufferSize(256);
     Serial1.begin(921600, SERIAL_8N1, Rx, Tx);
 
-    // Get calibrate data from flash memory
+    // Get calibrated data from flash memory
     pref.begin("Angle_Cal", false);
     e[0] = pref.getFloat("Ex", 0.0);
     e[1] = pref.getFloat("Ey", 0.0);
@@ -40,7 +40,7 @@ void IMU42688::Initialize(byte Rx, byte Tx)
     unit = pref.getInt("Unit", 0);
     pref.end();
 
-    // Preint data resume from flash mamory.
+    // Preint data resume from flash memory.
     Cal_Info_From_Flash = "s[0] = " + String(s[0], 6) + ", ";
     Cal_Info_From_Flash += "s[1] = " + String(s[1], 6) + ", ";
     Cal_Info_From_Flash += "s[2] = " + String(s[2], 6) + "\n";
@@ -57,23 +57,23 @@ void IMU42688::Initialize(byte Rx, byte Tx)
 /**
  * @brief Update IMU data and check the IMU warm-up situation
  * @param [out] \b AngleCal : Calibrated real-time angle degree {X, Y, Z}
- * @param [out] \b AngleCalShow : Calibrated special filted angle degree for interface display  {X, Y, Z}
+ * @param [out] \b AngleCalShow : Calibrated special filtered angle degree for interface display  {X, Y, Z}
  * @param [out] \b SensorTemperature : Filted sensor temperature (C).
  * @param [out] \b Gravity : Current Gravity Direction.
  * @param [out] \b GravityPrevious : Gravity Direction for interface rotation.
  * @param [out] \b fWarmUp : IMU warm-up % (from 0 to 100).
- * @retval Return byte to indicate if update successfully.
+ * @retval Return byte to indicate if the update is successful.
  * @retval 0 - Update success.
  * @retval 1 - IMU not warm up.
  * @retval 2 - Recieve data formatting error.
  * @retval 3 - Recieve angle value located outside the threshold.
- * @retval >4 - Times that IMU coped failed. Usually because Serial1 not available.
+ * @retval >4 - Times that IMU coped failed. Usually caused by Serial1 not being available.
  * @note If keep returning byte > 2, the TX RX order in Initialize().
  */
 byte IMU42688::Update()
 {
     // Action 1: Read Data *********************************************
-    // Read multiple time in case of wrong coping
+    // Read multiple times in case of wrong coping
     for (int j = 0; j < IMU_C * 2; j++)
     {
         // Step 1: Read Data from Serial1 --------------------------
@@ -112,7 +112,7 @@ byte IMU42688::Update()
             goto NextLoop;
         }
 
-        // 2. Check Temperature (If sensor temperature have chances to exceed 60 degree, remember to change the check range.)
+        // 2. Check Temperature (If sensor temperature has the chance to exceed 60 degrees, remember to change the check range.)
         if (IMU.RecievedIMUData[9] < 10 || IMU.RecievedIMUData[9] > 60)
         {
             ErrorCode = Err_IMU_Receive_Data_Error;
@@ -137,7 +137,7 @@ byte IMU42688::Update()
         if (Gravity_cope == 4 || Gravity_cope == 1)
             GravityPrevious = Gravity_cope;
 
-        // 2. Add butterworth filter to temperature (To provide a fluent warm up running bar.)
+        // 2. Add Butterworth filter to temperature (To provide a fluent warm-up running bar.)
         SensorTemperatureCollect[1] = SensorTemperatureCollect[0];
         SensorTemperatureCollect[0] = IMU.RecievedIMUData[9];
         SensorTemperature = SensorTemperature * 0.96 + SensorTemperatureCollect[0] * 0.02 + SensorTemperatureCollect[1] * 0.02;
@@ -157,7 +157,7 @@ byte IMU42688::Update()
         Have_New_Data_for_Collect = true;
 
         // Step 5: Print data to serial "!!! FOR DEBUG ONLY !!!" -------------------------------------
-        // Write ALL result onto ONE string and print them together to save the Serial,print time consume
+        // Write ALL results onto ONE string and print them together to save the Serial.print time consumption.
         if (Serial_Print_Update_Data)
         {
             String S_Print = "";
@@ -212,22 +212,22 @@ byte IMU42688::Update()
             StartTemperature = SensorTemperature;
             SteadyTempCalStart = millis();
             fWarmUp++;
-            // Light up IMU warm up hint LED.
+            // Light up IMU warm-up hint LED.
             if (pLED)                        // If pLED had been set properly
                 pLED->Set(0, pLED->Y, 1, 2); // Set yellow light on LED 0
         }
 
-        // Action 3: Calculate warm-up runing bar *****************************************************
-        // Once the warm up complete, the system won't get into warm up situation again no matter how the sensor temperature goes.
+        // Action 3: Calculate warm-up running bar *****************************************************
+        // Once the warm-up is complete, the system won't get into a warm-up situation again no matter how the sensor temperature goes.
         else if (fWarmUp != 100)
         {
-            // Step 1: Check if the temperature reach the defined warm-up temperature. ------------------------------------
+            // Step 1: Check if the temperature reaches the defined warm-up temperature. ------------------------------------
             if (SensorTemperature < WarmUpTemperature)
             {
-                // Step 2: Calculate the warm up running-bar from the sensor temperature. ---------------------------------
+                // Step 2: Calculate the warm-up running bar from the sensor temperature. ---------------------------------
                 // Used the below calculation to make the warm-up running bar look stable.
                 int fWarmUp_t = pow((SensorTemperature - StartTemperature) / (WarmUpTemperature - StartTemperature), 2) * 100;
-                // Make sure warm-up running bar goes positive.
+                // Make sure the warm-up running bar goes positive.
                 if (fWarmUp_t > fWarmUp)
                 {
                     fWarmUp = fWarmUp_t;
@@ -235,7 +235,7 @@ byte IMU42688::Update()
                 }
 
                 // Step 3: Calculate the temperature stability, and used it as the secondary warm-up reference. -------------------
-                // Define the sensor is warm-up if temperature remain in threshold.
+                // Define the sensor as a warm-up situation if the temperature remains within the threshold.
                 if (millis() - SteadyTempCalStart < SteadyTempCalPeriod * 1000)
                 {
                     MaxTemp = max(MaxTemp, SensorTemperature);
@@ -255,9 +255,9 @@ byte IMU42688::Update()
                         // Debug.println(String(fWarmUp));
                     }
 
-                    // Step 4: Prevent the auto shut-down when waiting for warm-up. ---------------------------------------
-                    // Reset the clock every 1.5 minute is enough.
-                    // Reseting the clock too often may block the button interrupt.
+                    // Step 4: Prevent the auto shutdown when waiting for warm-up. ---------------------------------------
+                    // Reset the clock every 1.5 minutes is enough.
+                    // Resetting the clock too often may block the button interrupt.
                     if (fWarmUpTime) // If the pointer to the auto time-off shut-down clock is properly set
                         *fWarmUpTime = millis();
 
@@ -270,7 +270,7 @@ byte IMU42688::Update()
             else // Step 5: If warm-up complete. -------------------------------------------------------------
             {
             Warm_Up_Finish:
-                // Set fWarmUp to 100 to prevent the running-bar from exceeding the frame.
+                // Set fWarmUp to 100 to prevent the running bar from exceeding the frame.
                 fWarmUp = 100;
                 // Start the auto time-off shut-down clock.
                 if (fWarmUpTime) // If the pointer to the auto time-off shut-down clock is properly set
@@ -279,14 +279,14 @@ byte IMU42688::Update()
                 if (pLED)                  // If pLED had been set properly,
                     pLED->Set(0, 0, 0, 2); // turn off LED hint light.
             }
-        } // end Warm Up Calculation
+        } // end Warm-Up Calculation
     }
     return ErrorCode;
 } // end Update()
 
 /**
  * @brief Get the horizontal bubble level angle.
- * @return float - Degree angle refer to the horizontal bubble level.
+ * @return float - Degree angle refers to the horizontal bubble level.
  */
 float IMU42688::getHorizontal()
 {
@@ -304,7 +304,7 @@ float IMU42688::getHorizontal()
 
 /**
  * @brief Get the vertical bubble level angle.
- * @return float - Degree angle refer to the vertical bubble level.
+ * @return float - Degree angle refers to the vertical bubble level.
  */
 float IMU42688::getVertical()
 {
@@ -321,9 +321,9 @@ float IMU42688::getVertical()
 }
 
 /**
- * @brief Get the special filted horizontal bubble level angle.
- * @attention For interface shown only. Shouldn't used in any kinds of calculation.
- * @return float - Degree angle refer to the horizontal bubble level.
+ * @brief Get the special filtered horizontal bubble level angle.
+ * @attention For interface shown only. Shouldn't used in any kind of calculation.
+ * @return float - Degree angle refers to the horizontal bubble level.
  */
 float IMU42688::getHorizontalFilt()
 {
@@ -340,9 +340,9 @@ float IMU42688::getHorizontalFilt()
 }
 
 /**
- * @brief Get the special filted vertical bubble level angle.
- * @attention For interface shown only. Shouldn't used in any kinds of calculation.
- * @return float - Degree angle refer to the vertical bubble level.
+ * @brief Get the special filtered vertical bubble level angle.
+ * @attention For interface shown only. Shouldn't used in any kind of calculation.
+ * @return float - Degree angle refers to the vertical bubble level.
  */
 float IMU42688::getVerticalFilt()
 {
@@ -389,7 +389,7 @@ String IMU42688::String_rad(float degree)
  *
  * @param [in] degree Angle for convert (degree).
  * @return String - Angle in tangent*1000 (mm/m) with length = 6, precision = 1.
- * @note This function return the tangent value to the closet horizontal or vertical reference (-90, 0, 90, or 180 degree)
+ * @note This function return the tangent value to the closet horizontal or vertical reference (-90, 0, 90, or 180 degrees)
  */
 String IMU42688::String_mm(float degree)
 {
@@ -418,7 +418,7 @@ String IMU42688::String_mm(float degree)
  * @brief Convert float degree into String with current angle setting unit.
  *
  * @param [in] degree Angle for convert (degree).
- * @return String - Angle in current unit setlect with length = 6.
+ * @return String - Angle in current unit select with length = 6.
  * @retval If unit = 0, return degree with precision = 2.
  * @retval If unit = 1, return mm/m with precision = 1.
  * @retval If unit = 2, return radian with precision = 4.
@@ -444,10 +444,10 @@ String IMU42688::String_now_unit(float degree)
  * @param [out] unit : Interface levelness display unit.
  *
  * @deprecated Set the unit and save it to the preference memory (Remain the unit setting after system restart).
- * @note If Info include "unit=deg", function will set the display unit into degree. (unit = 0)
- * @note else if Info include "unit=mm/m", function will set the display unit into mm/m. (unit = 1)
- * @note else if Info include "unit=rad", function will set the display unit into radian. (unit = 2)
- * @note Otherwies, do nothing.
+ * @note If Info includes "unit=deg", the function will set the display unit into degree. (unit = 0)
+ * @note else if Info includes "unit=mm/m", function will set the display unit into mm/m. (unit = 1)
+ * @note else if Info includes "unit=rad", function will set the display unit into radian. (unit = 2)
+ * @note Otherwise, do nothing.
  */
 void IMU42688::SetUnit(String Info)
 {
@@ -478,12 +478,12 @@ void IMU42688::SetUnit(String Info)
 }
 
 /**
- * @brief Collect the angle data if IMU stay stable.
- * @note Will cancel the calibration if the IMU's attitude change severe such that the gravity direction change.
+ * @brief Collect the angle data if IMU stays stable.
+ * @note Will cancel the calibration if the IMU's attitude change severely such that the gravity direction change.
  */
 void IMU42688::CollectCalData()
 {
-    // Check if the angle data already been load.
+    // Check if the angle data has already been loaded.
     if (!Have_New_Data_for_Collect)
         return;
     else
@@ -496,7 +496,7 @@ void IMU42688::CollectCalData()
         memmove(&StartCalA[0], &Angle[0], sizeof(StartCalA));
     }
 
-    // If the IMU's attitude change severe such that the gravity direction change, cancel the calibration.
+    // If the IMU's attitude changes severely such that the gravity direction change, cancel the calibration.
     else if (Gravity != StartCalG)
     {
         CalStop();
@@ -533,7 +533,7 @@ float IMU42688::Avg_in_2StDev(float *Angle, bool *Count, int Countlength)
 {
     bool ChangeCount = true;
     double Avg;
-    // Calculate until all angel stay inside 2 StDev.
+    // Calculate until all angels stay inside 2 StDev.
     while (ChangeCount)
     {
         // 1. Calculate the mean value of the angle array.
@@ -574,7 +574,7 @@ float IMU42688::Avg_in_2StDev(float *Angle, bool *Count, int Countlength)
 }
 
 /**
- * @brief Set the current attitude as ideal attitude.
+ * @brief Set the current attitude as the ideal attitude.
  *
  */
 void IMU42688::QuickCalibrate()
@@ -582,9 +582,9 @@ void IMU42688::QuickCalibrate()
     // Collect angle data.
     CollectCalData();
 
-    // If collection complete, calculate the angle difference between the measure result and ideal value.
+    // If collection is complete, calculate the angle difference between the measured result and the ideal value.
     // 1. Identify the axis to calibration in the gravity direction.
-    // 2. Identify the ideal value of the axis to calibration.
+    // 2. Identify the ideal value of the axis for calibration.
     // 3. Compare the ideal value and measure value and get the error.
     // 4. Save the error to the flash memory.
     if (CalibrateCount == CalAvgNum)
@@ -638,13 +638,13 @@ void IMU42688::QuickCalibrate()
 }
 
 /**
- * @brief Calibrate the zero position and the scale for all three axis.
- * @warning Didn't eliminate the human operation error. Not recommand to use this function to calibrate.
+ * @brief Calibrate the zero position and the scale for all three axes.
+ * @warning Didn't eliminate the human operation error. Not recommend to use this function to calibrate.
  *
  */
 void IMU42688::FullCalibrate()
 {
-    // Check if the require the current gravity direction infromation.
+    // Check if require the current gravity direction information.
     if (Gravity > 2 || FullCalComplete[Gravity])
     {
         return;
@@ -652,7 +652,7 @@ void IMU42688::FullCalibrate()
 
     CollectCalData();
 
-    // Calculate the angle value when measurement complete
+    // Calculate the angle value when the measurement complete
     if (CalibrateCount == CalAvgNum)
     {
         // Get the Average
@@ -664,13 +664,13 @@ void IMU42688::FullCalibrate()
         memset(&SumCalA, 0, sizeof(SumCalA));
 
         // Measure on #n direction complete ( n = Gravity )
-        // If calibration procedure isn't finished, back to confirm page.
+        // If the calibration procedure isn't finished, back to confirm page.
         FullCalComplete[Gravity] = true;
         CalibrateCheck = 0;
         SetCalLED(2);
     }
 
-    // If all measurment complete, calculate and save the parameter to flash memory.
+    // If all measurements are complete, calculate and save the parameter to flash memory.
     if (FullCalComplete[0] && FullCalComplete[1] && FullCalComplete[2])
     {
         pref.begin("Angle_Cal", false);
@@ -679,11 +679,11 @@ void IMU42688::FullCalibrate()
         {
             // Calculate the result ------------------------------------------------
             // 1. Calculate Scale factor
-            //  - Ideal angle reding between two result is 90.
-            //  - Used the scale facter to eliminate the scale error of the IMU
+            //  - Ideal angle reading between two results is 90.
+            //  - Used the scale factor to eliminate the scale error of the IMU
             s[i] = 90.0 * pow(-1, i) / (FullCalAngle[i + 3] - FullCalAngle[i]);
             // 2. Calculate zero position bias
-            //  - Compare the angle difference between ideal 0 and measure result.
+            //  - Compare the angle difference between ideal 0 and the measure result.
             //  - Used bias to eliminate this error.
             b[i] = -FullCalAngle[i];
             // 3. Set zero position error into bias.
@@ -710,7 +710,7 @@ void IMU42688::FullCalibrate()
 
 /**
  * @brief Make a full calibration on Z Axis.
- * @warning This function should only be available to manufactorer.
+ * @warning This function should only be available to manufacturer.
  * @warning This calibration should be done in lab.
  * @note Calibration Procedure :
  * @note 1. Measure the axis Z reading when axis x point to world up direction for 10 times.
