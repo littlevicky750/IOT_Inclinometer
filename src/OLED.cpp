@@ -66,7 +66,7 @@ void OLED::Initialize()
     u8g2.clearBuffer();
     char S[19] = "IoT  Inclinometer";
     u8g2.drawStr(64 - u8g2.getStrWidth(S) / 2, 30, S);
-    char S1[17] = "V 3.10";
+    char S1[17] = "V 3.11";
     u8g2.drawStr(64 - u8g2.getStrWidth(S1) / 2, 48, S1);
     u8g2.sendBuffer();
 }
@@ -195,7 +195,7 @@ void OLED::Update()
 
     u8g2.clearBuffer();
     int Rotation_previous = Rotation;
-    if (imu->Gravity % 3 == 2 || Page == 2 || Page == 3 || Page == 5 || Page == 6 || (Page == 8 && imu->CalibrateCheck == -1))
+    if (imu->Gravity % 3 == 2 || Page == 2 || Page == 4 || Page == 5 || (Page == 8 && imu->CalibrateCheck == -1))
         Rotation = imu->GravityPrevious;
     else
         Rotation = imu->Gravity;
@@ -221,16 +221,16 @@ void OLED::Update()
         Mode();
         break;
     case 3:
-        Unit();
-        break;
-    case 4:
         Wifi();
         break;
-    case 5:
+    case 4:
         Save();
         break;
-    case 6:
+    case 5:
         Clock();
+        break;
+    case 6:
+        AngleXYZ();
         break;
     case 7:
         Battery(u8g2.getDisplayWidth() / 2 - 32, u8g2.getDisplayHeight() / 2 - 24, 64, 26, 6);
@@ -246,43 +246,54 @@ void OLED::Update()
             Cal();
         break;
     default:
-        CheckState();
-        if (Rotation % 3 == 0)
-        {
-            Battery(0, 122, 28, 6, 2);
-            ICON(0, 93, 28, 28);
-            QuickInfo(29, 93, 35, 35);
-            Describe(0, 0, 63, 18, V);
-            Main2(0, 21, 64, 70);
-        }
-        else
-        {
-            Main2(44, 22, 84, 42);
-            Describe(40, 0, 87, 18, H);
-            QuickInfo(0, 32, 41, 32);
-            ICON(11, 0, 30, 30);
-            Battery(0, 0, 9, 30, 2);
-        }
+        Main();
         break;
     }
     u8g2.sendBuffer();
 }
 
-void OLED::Unit()
+void OLED::Main()
 {
-    u8g2.setFont(Default_Font);
-    u8g2.drawStr(0, 11, "Unit");
-    u8g2.drawBox(0, 13, 128, 1);
-    char U[3][7] = {"degree", "mm  m", "radian"};
-    int y[3] = {15, 33, 49};
-    int dh[3] = {1, 2, 2};
-    u8g2.drawBox(0, y[ShowUnit], 128, 17 - dh[ShowUnit]);
-    u8g2.setDrawColor(2);
-    u8g2.drawStr(64 - u8g2.getStrWidth(U[0]) / 2, y[0] + dh[0] + 11, U[0]);
-    u8g2.drawStr(64 - u8g2.getStrWidth(U[1]) / 2, y[1] + dh[1] + 10, U[1]);
-    u8g2.drawStr(64 - u8g2.getStrWidth(U[2]) / 2, y[2] + dh[2] + 11, U[2]);
-    u8g2.drawStr(64 - u8g2.getStrWidth(U[2]) / 2 + u8g2.getStrWidth("mm") + 2, y[1] + dh[1] + 11, "/");
-    u8g2.setDrawColor(1);
+    CheckState();
+    if (Rotation % 3 == 0)
+    {
+        Main2(0, 31, 64, 49);
+        Describe(0, 7, 63, 20);
+        Battery(0, 111, 28, 10, 2);
+        ICON(0, 81, 28, 28);
+        QuickInfo(30, 81, 34, 40);
+    }
+    else
+    {
+        Main2(49, 24, 72, 41);
+        Describe(46, 0, 74, 20);
+        QuickInfo(7, 32, 40, 32);
+        ICON(18, 0, 30, 30);
+        Battery(7, 0, 9, 30, 2);
+    }
+    if (imu->Gravity % 3 == 0)
+    {
+        int G = (imu->Gravity / 3 == 1) ? -90 : 90;
+        int length = abs(tan((imu->AngleCalShow[2] - G) * PI / 180)) * 1000 + 1;
+        length = (length > 13) ? 13 : length;
+        bool d = (imu->AngleCalShow[2] < G);
+        for (int i = 0; i < length; i++)
+        {
+            u8g2.drawXBM(0 + 5 * i, 0 * d + 123 * !d, 3, 5, Arrow[3]);
+            u8g2.drawXBM(61 - 5 * i, 0 * !d + 123 * d, 3, 5, Arrow[2]);
+        }
+    }
+    else if (imu->Gravity % 3 == 1)
+    {
+        float tangent = tan((imu->AngleCalShow[2]) * PI / 180) * 1000;
+        int length = (abs(tangent) > 12) ? 13 : abs(tangent) + 1;
+        bool d = (tangent > 0);
+        for (int i = 0; i < length; i++)
+        {
+            u8g2.drawXBM(0 * d + 123 * !d, 0 + 5 * i, 5, 3, Arrow[1]);
+            u8g2.drawXBM(0 * !d + 123 * d, 61 - 5 * i, 5, 3, Arrow[0]);
+        }
+    }
 }
 
 void OLED::Mode()
@@ -297,6 +308,53 @@ void OLED::Mode()
     u8g2.setDrawColor(1);
 }
 
+void OLED::AngleXYZ()
+{
+    u8g2.setFont(MSpace_Font);
+    u8g2.drawStr(0, 11, "ANGLE");
+    u8g2.drawBox(0, 15, 128, 2);
+    char T[7];
+    dtostrf(imu->SensorTemperature, 6, 1, T);
+    T[0] = 'T';
+    T[1] = ':';
+    if (Rotation % 3 == 1)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            u8g2.drawGlyph(0, 32 + 16 * i, i + 88);
+            u8g2.drawGlyph(6, 32 + 16 * i, ':');
+            char A[8] = "  -----";
+            if (imu->Gravity % 3 != i)
+            {
+                dtostrf(imu->AngleCalShow[i], 7, 2, A);
+                u8g2.drawFrame(62, 20 + 16 * i, 3, 3);
+            }
+            u8g2.drawStr(12, 32 + 16 * i, A);
+        }
+        u8g2.drawStr(75, 32, T);
+        u8g2.drawGlyph(122, 32, 'C');
+        u8g2.drawFrame(118, 20, 3, 3);
+    }
+    else
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            u8g2.drawGlyph(0, 32 + 18 * i, i + 88);
+            u8g2.drawGlyph(6, 32 + 18 * i, ':');
+            char A[8] = "  -----";
+            if (imu->Gravity % 3 != i)
+            {
+                dtostrf(imu->AngleCalShow[i], 7, 2, A);
+                u8g2.drawFrame(61, 20 + 18 * i, 3, 3);
+            }
+            u8g2.drawStr(11, 32 + 18 * i, A);
+        }
+        u8g2.drawStr(0, 86, T);
+        u8g2.drawGlyph(47, 86, 'C');
+        u8g2.drawFrame(43, 74, 3, 3);
+    }
+}
+
 void OLED::Menu()
 {
     int dx[5] = {0, 0, 0, 1, 3};
@@ -306,7 +364,7 @@ void OLED::Menu()
     bool isH = (Rotation % 3 != 0);
     int PageNum = (imu->fWarmUp == 100) ? 8 : 7;
     int nx, ny;
-    char TempTitle[PageNum][5] = {"HOME", "MODE", "UNIT", "WIFI", "Time", "SAVE", "BATT", "CALI"};
+    char TempTitle[PageNum][5] = {"HOME", "MODE", "WIFI", "Time", "SAVE", "ANGL", "BATT", "CALI"};
     nx = 2 + 31 * ((isH) ? MenuCursor / 2 : MenuCursor % 2);
     ny = 2 + 31 * ((isH) ? MenuCursor % 2 : MenuCursor / 2);
     u8g2.drawRBox(x + nx, y + ny, 28, 28, 3);
@@ -323,9 +381,6 @@ void OLED::Menu()
             u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, Home24x24);
             break;
         case 2:
-            u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, Unit24x24[ShowUnit]);
-            break;
-        case 3:
             u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, WiFi24x24[WiFiShow()]);
             if (pWifiState->now == pWifiState->Off)
             {
@@ -338,7 +393,7 @@ void OLED::Menu()
                 u8g2.drawGlyph(x + nx + 22, y + ny + 28, pWifiState->Channel + 48);
             }
             break;
-        case 4:
+        case 3:
             if (pSD->Show.indexOf("OFF") != -1)
                 u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, SDOFF24x24);
             else if (*SDState == false)
@@ -348,7 +403,7 @@ void OLED::Menu()
             else
                 u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, SD24x24);
             break;
-        case 5:
+        case 4:
         {
             u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, BlankClock24x24);
             int num = ClockShow->now.minute();
@@ -361,6 +416,9 @@ void OLED::Menu()
             }
             break;
         }
+        case 5:
+            u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, XYZ24x24);
+            break;
         case 6:
             Battery(x + nx + 5, y + ny + 10, 22, 12, 2);
             break;
@@ -381,7 +439,7 @@ void OLED::Menu()
     u8g2.setDrawColor(1);
 }
 
-void OLED::Describe(int x, int y, int w, int h, bool isH)
+void OLED::Describe(int x, int y, int w, int h)
 {
     char S[8];
     if (State == 0)
@@ -405,22 +463,11 @@ void OLED::Describe(int x, int y, int w, int h, bool isH)
 
     int ha, hb, ws, wb;
     wb = w / 10;
-    if (true) //(isH)
-    {
-        u8g2.setFont(Default_Font);
-        ha = 11;
-        hb = 15;
-        ws = u8g2.getStrWidth(S);
-        u8g2.drawStr(x + w / 2 - ws / 2, y + ha, S);
-    }
-    else
-    {
-        u8g2.setFont(Describe_Font);
-        ha = 8;
-        hb = 22;
-        ws = u8g2.getStrWidth(S);
-        u8g2.drawStr(x + w / 2 - ws / 2, y + ha, S);
-    }
+    u8g2.setFont(Default_Font);
+    ha = 11;
+    hb = 16;
+    ws = u8g2.getStrWidth(S);
+    u8g2.drawStr(x + (w - ws) / 2, y + ha, S);
     u8g2.drawHLine(x, y + h, w);
     if (h > hb + 1)
     {
@@ -496,79 +543,50 @@ void OLED::QuickInfo(int x, int y, int w, int h)
     int hs = u8g2.getAscent() - u8g2.getDescent();
     int ws = u8g2.getStrWidth(S1);
     u8g2.drawStr(x + w / 2 - ws / 2, y + (h + 2 * hs) / 4 - 1, S1);
-    ws = u8g2.getStrWidth(S2[ShowUnit]);
-    u8g2.drawStr(x + w / 2 - ws / 2, y + (3 * h + 2 * hs) / 4 - 1, S2[ShowUnit]);
+    ws = u8g2.getStrWidth(S2[imu->unit]);
+    if (imu->unit == 1 && w - ws < 6 && (h - 1) / 2 > 19)
+    {
+        ws = 27;
+        hs = 14;
+        u8g2.drawXBM(x + w / 2 - ws / 2, y + (3 * h - 2 * hs) / 4 + 1, 27, 14, mmm_b_27x14);
+    }
+    else
+        u8g2.drawStr(x + w / 2 - ws / 2, y + (3 * h + 2 * hs) / 4 - 1, S2[imu->unit]);
     u8g2.setDrawColor(1);
 }
 
 void OLED::Main2(int x, int y, int TW, int TH)
 {
-    char Title[3][3] = {"ID", "A1", "A2"};
-    float An[2];
+    float An;
     if (Measure->State == Measure->Done)
     {
-        An[0] = Measure->ResultAngle[0];
-        An[1] = Measure->ResultAngle[1];
+        An = Measure->ResultAngle[2];
     }
     else
     {
-        An[0] = imu->getHorizontalFilt();
-        An[1] = imu->getVerticalFilt();
+        An = imu->AngleCalShow[2];
     }
     char A[3][8];
     strcpy(A[0], ID->c_str());
-    switch (ShowUnit)
-    {
-    case 1:
-        for (int i = 0; i < 2; i++)
-        {
-            if (abs(An[i]) < 5.7 || abs(An[i]) > 174.3)
-            {
-                An[i] = round(tan(An[i] * PI / 180.0) * 5000) / 5.0;
-                dtostrf(An[i], 7, 1, A[i + 1]);
-            }
-            else
-                strcpy(A[i + 1], "-------");
-        }
-        break;
-    case 2:
-        dtostrf(An[0] * PI / 180.0, 7, 4, A[1]);
-        dtostrf(An[1] * PI / 180.0, 7, 4, A[2]);
-        break;
-    default:
-        dtostrf(An[0], 7, 2, A[1]);
-        dtostrf(An[1], 7, 2, A[2]);
-        break;
-    }
-
-    u8g2.setFont(MSpace_Font);
-    int Sh = 10;
-    int Dh, LH, S1h, S2h;
-    if (TW > 64)
-    {
-        S1h = Sh;
-        Dh = (TH - Sh * 3) / 4;
-        S2h = Sh;
-        LH = Sh + (TH - Sh * 3) / 2;
-    }
+    if (imu->Gravity % 3 == 2)
+        strcpy(A[1], "-------");
     else
-    {
-        S1h = Sh;
-        Dh = 2;
-        S2h = (TH - Dh * 4 - 2) / 3;
-        LH = S2h + Dh * 2 + 1;
-    }
-    for (int i = 0; i < 3; i++)
-    {
-        u8g2.drawStr(x + 4, y + S1h + LH * i, Title[i]);
-        u8g2.drawStr(x + TW - u8g2.getStrWidth(A[i]) - 4, y + S2h + LH * i, A[i]);
-        if (i != 2)
-        {
-            u8g2.drawBox(x, y + S2h + LH * i + Dh - 1, 3, 3);
-            u8g2.drawBox(x + TW - 3, y + S2h + LH * i + Dh - 1, 3, 3);
-            u8g2.drawHLine(x, y + S2h + LH * i + Dh, TW);
-        }
-    }
+        strcpy(A[1], imu->String_now_unit(An).c_str());
+
+    int Sh = 10;
+    int Dh, LH, S2h;
+
+    Dh = 3;
+    S2h = (TH - Dh * 2 - 2) / 2;
+    LH = S2h + Dh * 2 + 1;
+    u8g2.setFont(MSpace_Font);
+    u8g2.drawXBM(x + 2, y, 17, 10, Main_Title_17x10[0]);
+    u8g2.drawXBM(x + 2, y + LH, 17, 10, Main_Title_17x10[1]);
+    u8g2.drawStr(x + TW - u8g2.getStrWidth(A[0]) - 4, y + S2h, A[0]);
+    u8g2.drawStr(x + TW - u8g2.getStrWidth(A[1]) - 4, y + S2h + LH, A[1]);
+    u8g2.drawBox(x, y + S2h + Dh - 1, 3, 3);
+    u8g2.drawBox(x + TW - 3, y + S2h + Dh - 1, 3, 3);
+    u8g2.drawHLine(x, y + S2h + Dh, TW);
 }
 
 void OLED::ICON(int x, int y, int w, int h)
@@ -801,7 +819,7 @@ void OLED::Cal()
                 else
                 {
                     Question += ", Ready?";
-                    Question += "(" + String(imu->CalibrateCollectCount[imu->Gravity]+1) + ")";
+                    Question += "(" + String(imu->CalibrateCollectCount[imu->Gravity] + 1) + ")";
                     line3 = (imu->CalibrateCollectCount[imu->Gravity] > 8) ? 4 : 3;
                     ShowYesNo = true;
                 }
@@ -829,7 +847,7 @@ void OLED::Cal()
                 u8g2.drawGlyph(w, 35, a);
                 w += (a == ' ' || a == 'l') ? 5 : 7;
             }
-            if (imu->Cursor !=3)
+            if (imu->Cursor != 3)
                 u8g2.drawStr(0, 55, Question.substring(Question.length() - line3).c_str());
         }
 

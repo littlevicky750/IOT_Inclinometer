@@ -1,5 +1,5 @@
-// Add upload to google sheet function
-// Add set wifi name & password from SD card function
+// Add function set show unit via SD card.
+// Change Show
 #include <Arduino.h>
 #include "SerialDebug.h"
 
@@ -7,7 +7,8 @@ SerialDebug D;
 extern SerialDebug Debug = D;
 
 const gpio_num_t Pin_Button_Wakeup = GPIO_NUM_0;
-const byte Pin_SwichEN = 1;
+const byte Pin_SwichEN1 = 1;
+const byte Pin_SwichEN2 = 10;
 const byte Pin_Button0 = Pin_Button_Wakeup;
 const byte Pin_Button1 = 7;
 const byte Pin_Button2 = 6;
@@ -52,7 +53,7 @@ LED 0 + 1 :
 */
 
 #define RFID_RST IO_RFID_RST
-#define TestVersion false
+#define TestVersion true
 #include "LEDFlash.h"
 LEDFlash LED;
 
@@ -104,7 +105,7 @@ static void FAST(void *pvParameter)
       Debug.println("[Warning] Task Fast Time Out.");
     if (imu.Update() == imu.IMU_Update_Success)
     {
-      Calculate.Input(imu.getHorizontal(), imu.getVertical());
+      Calculate.Input();
     }
     ButtonUpdate();
     oled.Update();
@@ -164,11 +165,16 @@ static void Save(void *pvParameter)
   xLastWakeTime = xTaskGetTickCount();
   bool do_WiFi_Send = false;
   bool fHaveSD_pre = fHaveSD;
+  int TimeOutFilt = millis();
   for (;;)
   {
     xWasDelayed = xTaskDelayUntil(&xLastWakeTime, do_WiFi_Send ? 10000 : 3000);
     if (!xWasDelayed)
-      Debug.println("[Warning] Task Save Time Out.");
+    {
+      if (millis() - TimeOutFilt < 1000)
+        Debug.println("[Warning] Task Save Time Out.");
+      TimeOutFilt = millis();
+    }
     // Check SD State and save Debug String every Loop
     // Create and Save Data to file if fSave = true;
     String Msg = "";
@@ -181,6 +187,7 @@ static void Save(void *pvParameter)
       Msg += rfid.ID + ",";
       Msg += String(Calculate.ResultAngle[0], 2) + ",";
       Msg += String(Calculate.ResultAngle[1], 2) + ",";
+      Msg += String(Calculate.ResultAngle[2], 2) + ",";
       Msg += String(Standard.Standard) + ",";
       Msg += String(imu.Gravity) + ",";
       Msg += String(imu.SensorTemperature) + "\n";
@@ -193,8 +200,9 @@ static void Save(void *pvParameter)
       Data += "&time=" + Clock.DateTimeStamp("_");
       Data += "&rfid=" + rfid.ID;
       Data += "&standard=" + String(Standard.Standard);
-      Data += "&angle1=" + String(Calculate.ResultAngle[0], 4);
-      Data += "&angle2=" + String(Calculate.ResultAngle[1], 4);
+      Data += "&angleX=" + String(Calculate.ResultAngle[0], 4);
+      Data += "&angleY=" + String(Calculate.ResultAngle[1], 4);
+      Data += "&angleZ=" + String(Calculate.ResultAngle[2], 4);
       Data += "&gravity=" + String(imu.Gravity % 3);
       Data += "&sensor_temperature=" + String(imu.SensorTemperature, 2);
       do_WiFi_Send = Net_Send_Measure(Data);
@@ -217,10 +225,25 @@ static void Save(void *pvParameter)
           if (!TestVersion)
           {
             Debug.Setup(sdCard);
-            Debug.printOnTop("========================Expert_Mode_On========================");
           }
+          String SystemInfo = "";
+          SystemInfo += "========================Expert_Mode_On========================\n";
+          SystemInfo += "Last Upload Time = " + String(__DATE__) + String(__TIME__) + "\n";
+          SystemInfo += "Mac Address = " + WiFi.macAddress() + "\n";
+          SystemInfo += "s[0] = " + String(imu.s[0], 6) + ", ";
+          SystemInfo += "s[1] = " + String(imu.s[1], 6) + ", ";
+          SystemInfo += "s[2] = " + String(imu.s[2], 6) + "\n";
+          SystemInfo += "b[0] = " + String(imu.b[0], 6) + ", ";
+          SystemInfo += "b[1] = " + String(imu.b[1], 6) + ", ";
+          SystemInfo += "b[2] = " + String(imu.b[2], 6) + "\n";
+          SystemInfo += "e[0] = " + String(imu.e[0], 6) + ", ";
+          SystemInfo += "e[1] = " + String(imu.e[1], 6) + ", ";
+          SystemInfo += "e[2] = " + String(imu.e[2], 6) + "\n";
+          SystemInfo += "==============================================================";
+          Debug.printOnTop(SystemInfo);
         }
         Net_Set(Info);
+        imu.SetUnit(Info);
       }
       else
       {
@@ -266,7 +289,7 @@ void ButtonUpdate()
     memset(ButPress, false, sizeof(ButPress));
   if (ButPress[0] || ButPress[1] || ButPress[2])
     LastEdit = millis();
-  else if (oled.Page != 0 && millis() - LastEdit > 10000 && !TestVersion && oled.Page != 8)
+  else if (oled.Page != 0 && millis() - LastEdit > 10000 && !TestVersion && oled.Page != 8 && oled.Page != 6)
     oled.Page = 0;
 
   bool ButtonUp = (imu.GravityPrevious == 4) ? ButPress[2] : ButPress[1];
@@ -352,15 +375,17 @@ void ButtonUpdate()
     if (ButPress[0])
       oled.Page = 0;
     break;
+    /*
   case 3:
     if (ButPress[0])
       oled.Page = 0;
     if (ButtonUp)
-      oled.ShowUnit = (oled.ShowUnit + 2) % 3;
+      imu.unit = (imu.unit + 2) % 3;
     if (ButtonDown)
-      oled.ShowUnit = (oled.ShowUnit + 1) % 3;
+      imu.unit = (imu.unit + 1) % 3;
     break;
-  case 4: // WiFi Page
+    */
+  case 3: // WiFi Page
     if (ButPress[0])
       oled.Page = 0;
     if (ButtonMin)
@@ -368,7 +393,7 @@ void ButtonUpdate()
     if (ButtonAdd)
       WiFiChannel(1);
     break;
-  case 5: // SD Card Page
+  case 4: // SD Card Page
     if (ButtonUp && sdCard.Cursor > 0)
       sdCard.Cursor--;
     if (ButtonDown && sdCard.Cursor < sdCard.Show.endsWith(".csv") + 1)
@@ -380,7 +405,7 @@ void ButtonUpdate()
     if (ButPress[0] && sdCard.Cursor == 2)
       oled.EasyBlock(sdCard.Show);
     break;
-  case 6: // Clock Page
+  case 5: // Clock Page
     if (Clock.Cursor == -1)
     {
       if (ButPress[0])
@@ -410,8 +435,12 @@ void ButtonUpdate()
       }
     }
     break;
+  case 6:
+    if (ButPress[0] || ButPress[1] || ButPress[2])
+      oled.Page = 0;
+    break;
   case 7: // Battery Page
-    if (ButPress[0])
+    if (ButPress[0] || ButPress[1] || ButPress[2])
       oled.Page = 0;
     break;
   case 8: // Calibration Page
@@ -449,7 +478,7 @@ void setup()
 {
   LED.SetPin(0, Pin_LED_0_R, Pin_LED_0_G, Pin_LED_0_B);
   Bat.SetPin(Pin_Battery);
-  Swich.On(Pin_Button_Wakeup, Pin_SwichEN, LED, Bat, oled);
+  Swich.On(Pin_Button_Wakeup, Pin_SwichEN1, Pin_SwichEN2, LED, Bat, oled);
   Serial.begin(115200);
   pinMode(IO_RFID_RST, OUTPUT);
   pinMode(IO_RFID_RST, HIGH);
@@ -471,6 +500,8 @@ void setup()
   LED.SetPin(1, Pin_LED_1_R, Pin_LED_1_G, Pin_LED_1_B);
   oled.Initialize();
   Calculate.pLED = &LED;
+  Calculate.InputAngle = imu.AngleCal;
+  Calculate.G = &imu.Gravity;
   rfid.pLED = &LED;
   imu.pLED = &LED;
   imu.fWarmUpTime = &LastEdit;
@@ -484,6 +515,7 @@ void setup()
   oled.pWifiState = &WiFiState;
   oled.Standard = &Standard;
   oled.pSD = &sdCard;
+  
   while (!digitalRead(Pin_Button0))
     delay(1);
   LED.Set(0, 0, 0, 4);

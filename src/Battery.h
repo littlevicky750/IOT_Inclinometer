@@ -31,6 +31,7 @@ public:
         }
         if (Count != 0)
         {
+            //Serial.println(Sum / Count);
             Percent = (((float)Sum / Count + 1.0 - 2170.0)  * 100.0/ 350.0 + 0.5);
             Percent = min(max(Percent,0),100);
         }

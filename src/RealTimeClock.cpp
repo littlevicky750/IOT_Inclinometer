@@ -556,6 +556,13 @@ DateTime RealTimeClock::TimeSpanYearMonth(DateTime T, int addYear, int addMonth)
   return DateTime(YearOperator, MonthOperator, T.day(), T.hour(), T.minute(), T.second());
 }
 
+int RealTimeClock::CheckTimeDifference(int Year, int Month, int Day, int hour, int minute, int second)
+{
+  DateTime D(Year, Month, Day, hour, minute, second);
+  return D.unixtime() - now.unixtime();
+}
+
+
 void RealTimeClock::SetTime(int Year, int Month, int Day, int hour, int minute, int second)
 {
   DateTime D(Year, Month, Day, hour, minute, second);

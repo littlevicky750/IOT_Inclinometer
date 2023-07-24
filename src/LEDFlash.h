@@ -67,16 +67,19 @@ public:
         for (int i = 0; i < LED_NUM; i++)
         {
             int P;
+            // Find the current highest priority flash
             for (P = 6; P > -1; P--)
             {
                 if (Count[i][P] != 0)
                     break;
             }
+            // Cancle all non-perminate less priority flash
             for (int j = P - 1; j > -1; j--)
             {
                 if (Close[i][j] != 0)
                     Set(i, 0, 0, j);
             }
+            // Flash
             if (P > 0 && count % Count[i][P] == i)
             {
                 if (Pin[i][0] != 0)

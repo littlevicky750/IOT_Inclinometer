@@ -17,8 +17,9 @@ String password = "null";                                                       
 String sheet_id = "1tF6z2MT1cIY5qWEmZyBdOPa5mv495GyZaV8sPPVWAIk";                                       // change Google Sheet ID
 String GOOGLE_SCRIPT_ID = "AKfycbx94EAb_avqk2NM4sumYtZEbrkhBkzCi_SKkA953yyg8ZSdCcV5u-8aucB-jn0W7Ub8zQ"; // change Google Sheet App Script ID
 
-bool isSendingMeasure = false;
-bool is_First_Connect = false;
+bool Require_Time_Adjust = true;
+bool isWifiWorking = false;
+int httpCode_pre = 0;
 unsigned int ErrorCount = 0;
 
 NetState WiFiState;
@@ -77,22 +78,31 @@ MsgBuffer Net_Send_Msg_Buffer;
 
 void GetNPTTime()
 {
+    Debug.println("[NPT] Time Zone = GMT+" + String(gmtOffset));
     configTime(gmtOffset * 3600, daylightOffset_sec, ntpServer);
     delay(10000);
     struct tm A;
     getLocalTime(&A);
-    Clock.SetTime(A.tm_year + 1900, A.tm_mon + 1, A.tm_mday, A.tm_hour, A.tm_min, A.tm_sec);
+    int TimeOffset = Clock.CheckTimeDifference(A.tm_year + 1900, A.tm_mon + 1, A.tm_mday, A.tm_hour, A.tm_min, A.tm_sec);
+    if (abs(TimeOffset - gmtOffset * 3600) < 100)
+        Require_Time_Adjust = true;
+    else
+        Clock.SetTime(A.tm_year + 1900, A.tm_mon + 1, A.tm_mday, A.tm_hour, A.tm_min, A.tm_sec);
 }
 
 void Net_Signal_Check()
 {
+    if (isWifiWorking)
+        return;
+    isWifiWorking = true;
     WiFiState.Signal = 4 + (int)WiFi.RSSI() / 32;
-    if (is_First_Connect)
+    if (Require_Time_Adjust && WiFiState.now == WiFiState.Connected)
     {
         delay(1000);
         GetNPTTime();
-        is_First_Connect = false;
+        Require_Time_Adjust = false;
     }
+    isWifiWorking = false;
 }
 
 bool Net_Send(String Data)
@@ -102,13 +112,16 @@ bool Net_Send(String Data)
     urlFinal += "id=" + sheet_id;
     urlFinal += "&sheet=test" + String(WiFiState.Channel);
     urlFinal += Data;
-    // Serial.print("POST data to spreadsheet:");
-    // Serial.println(urlFinal);
+    // Debug.println("POST data to spreadsheet : " + urlFinal);
+    WiFiClient client;
     HTTPClient http;
     http.begin(urlFinal.c_str());
+    http.setConnectTimeout(10000);
+    http.setTimeout(10000);
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
     // Check response from Apps script
+    bool SendSuccess = true;
     int httpCode = http.GET();
     if (httpCode > 0)
     {
@@ -117,14 +130,24 @@ bool Net_Send(String Data)
         int Get_return = atoi(payload.substring(Get_return_id + 8).c_str());
         if (Get_return_id == -1 || Get_return != 1)
         {
-            Debug.print("[WiFi] Data Upload Failed >>");
-            Debug.println(payload);
-            http.end();
-            return false;
+            Debug.print("[WiFi] Data Upload Failed >> " + payload);
+            SendSuccess = false;
         }
     }
+    else
+    {
+        if (httpCode == -1)
+        {
+            if (httpCode != httpCode_pre)
+                Debug.println("[WiFi] Upload Error >> " + http.errorToString(httpCode));
+            SendSuccess = false;
+        }
+        else if (httpCode != httpCode_pre)
+            Serial.println("[WiFi] Upload Error >> " + http.errorToString(httpCode));
+    }
+    httpCode_pre = httpCode;
     http.end();
-    return true;
+    return SendSuccess;
 }
 
 bool Net_Send_Measure(String Data)
@@ -133,14 +156,16 @@ bool Net_Send_Measure(String Data)
     {
         return false;
     }
-    if (WiFi.status() != WL_CONNECTED)
+    if (WiFi.status() != WL_CONNECTED || isWifiWorking)
     {
         Net_Send_Msg_Buffer.Add(Data);
         return false;
     }
+    isWifiWorking = true;
     if (Net_Send_Msg_Buffer.Take() != "")
     {
-        if (Net_Send(Net_Send_Msg_Buffer.Take()))
+        bool SendSuccess = Net_Send(Net_Send_Msg_Buffer.Take());
+        if (SendSuccess)
             Net_Send_Msg_Buffer.Next();
         else
         {
@@ -158,12 +183,13 @@ bool Net_Send_Measure(String Data)
         if (!Net_Send(Data))
             Net_Send_Msg_Buffer.Add(Data);
     }
+    isWifiWorking = false;
     return true;
 }
 
 void connectToWifi()
 {
-    //Serial.println("Connecting to Wi-Fi...");
+    // Serial.println("Connecting to Wi-Fi...");
     WiFi.begin(ssid.c_str(), password.c_str());
 }
 
@@ -171,7 +197,7 @@ void reconnectToWiFi()
 {
     if (WiFiState.now == WiFiState.Connected)
     {
-        WiFi.disconnect();
+        WiFi.disconnect(true, true);
     }
     xTimerStart(wifiReconnectTimer, 0);
 }
@@ -212,7 +238,6 @@ void WiFiEvent(WiFiEvent_t event)
     case SYSTEM_EVENT_STA_GOT_IP: // 7
         Debug.println("[WiFi] Wifi connected. IP Address: " + String(WiFi.localIP(), HEX));
         WiFiState.now = WiFiState.Connected;
-        is_First_Connect = true;
         break;
     }
 }
@@ -251,7 +276,8 @@ void Net_Init()
     preferences.begin("my-app", false);
     WiFiState.Channel = preferences.getInt("WiFiChannel", 1);
     preferences.end();
-    WiFi.disconnect(true);
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(true, true);
     // pdFALSE : timer will be a one-shot timer and enter the dormant state after it expires.
     // ID = 0 : make sure task won't execute at the same time and cause crashing.
     // Timer Call Back will run in the core same as Net_Init was called.
@@ -285,7 +311,6 @@ void Net_Set(String Info)
             {
                 ssid = Info_Cut[0];
                 password = Info_Cut[1];
-                Debug.println("[ESP] Address = " + WiFi.macAddress());
                 reconnectToWiFi();
             }
             if (Info_Cut[2] != "")
@@ -299,7 +324,7 @@ void Net_Set(String Info)
                 {
                     gmtOffset = NewTime;
                     WiFiState.GMT = NewTime;
-                    GetNPTTime();
+                    Require_Time_Adjust = true;
                 }
             }
         }

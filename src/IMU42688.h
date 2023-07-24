@@ -19,13 +19,14 @@ private:
     int IMUStart = 0;
     int CopeFailed = 0;
     int StartCalG;
+    float AngleShow[3] = {0, 0, 0};
     float StartCalA[3];
     float SumCalA[3];
     float FullCalAngle[6] = {0.0};
     float CalibrateCollect[6][10] = {0.0};
-    //float CalCollectedAngle[3][100] = {0};
-    //bool CalDevCount[100] = {1};
-    //const int CalCount = 100;
+    // float CalCollectedAngle[3][100] = {0};
+    // bool CalDevCount[100] = {1};
+    // const int CalCount = 100;
     void CollectCalData();
     void QuickCalibrate();
     void FullCalibrate();
@@ -34,11 +35,14 @@ private:
     float SensorTemperatureCollect[2] = {0};
     float StartTemperature = 25;
     float WarmUpTemperature = 40;
-    int WarmUpCount = 0;
+    float MaxTemp = 0;
+    float minTemp = WarmUpTemperature;
+    int SteadyTempCalStart = 0;
 
 public:
     float Angle[3] = {0, 0, 0};
-    float AngleShow[3] = {0, 0, 0};
+    float AngleCal[3] = {0, 0, 0};
+    float AngleCalShow[3] = {0, 0, 0};
     float SensorTemperature;
     float e[3] = {0.0};
     float s[3] = {0.0};
@@ -53,6 +57,7 @@ public:
     byte ErrorCode = Err_IMU_Not_Warm_Up;
     byte fWarmUp;
     int *fWarmUpTime;
+    int unit = 0; // 0 : degrree, 1 : mm/m, 2 : rad
     LEDFlash *pLED;
     void Initialize(byte Rx /*(-1)*/, byte Tx /*(-1)*/);
     byte Update();
@@ -60,6 +65,11 @@ public:
     float getVertical();
     float getHorizontalFilt();
     float getVerticalFilt();
+    String String_rad(float degree);
+    String String_mm(float degree);
+    String String_degree(float degree);
+    String String_now_unit(float degree);
+    void SetUnit(String Info);
     void Calibrate();
     void CalibrateSelect(byte Do);
     void CalStop();
