@@ -4,16 +4,17 @@ function doGet(e) {
   var system_time = String(e.parameter.time);
   var rfid = String(e.parameter.rfid);
   var standard = Number(e.parameter.standard);
-  var angle1 = Number(e.parameter.angle1);
-  var angle2 = Number(e.parameter.angle2);
+  var angleX = Number(e.parameter.angleX);
+  var angleY = Number(e.parameter.angleY);
+  var angleZ = Number(e.parameter.angleZ);
   var gravity = Number(e.parameter.gravity);
   var sensor_temperature = Number(e.parameter.sensor_temperature);
   var receive_time = new Date().toLocaleString();
 
   var ss = SpreadsheetApp.openById(sheet_id);
   var sheet = ss.getSheetByName(sheet_name);
-  sheet.appendRow([system_time, receive_time, rfid, standard, angle1, angle2, gravity, sensor_temperature]);
+  sheet.appendRow([system_time, receive_time, rfid, standard, angleX, angleY, angleZ, gravity, sensor_temperature]);
   return ContentService
-    .createTextOutput(JSON.stringify({ return  1}))
+    .createTextOutput(JSON.stringify({ return : 1}))
     .setMimeType(ContentService.MimeType.JSON);
 }
