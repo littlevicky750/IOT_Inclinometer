@@ -131,7 +131,7 @@ void SDCard::CreateFile(String FolderName)
   String Headler = "";
   Headler += "Version : 3.1 \n";
   Headler += "Sensor ID / Local File Create Date (YMD) : " + FolderName + "\n";
-  Headler += "Time, ID, Horizontal, Vertical, Standard, Gravity, Temperature";
+  Headler += "Time, ID, X, Y, Z, Standard, Gravity, Temperature";
   Headler += "\n";
 
   if (AvoidWDTimeOutCount == 0)

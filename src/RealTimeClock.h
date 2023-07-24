@@ -27,6 +27,7 @@ public:
   void ResetUserSetTimeBuffer();
   void UserSetTime(int Do);
   void SetTime(int Year, int Month, int Day, int hour, int minute, int second);
+  int CheckTimeDifference(int Year, int Month, int Day, int hour, int minute, int second);
   DateTime TimeSpanYearMonth(DateTime T, int addYear, int addMonth);
   int Cursor = -1;
 

@@ -24,8 +24,9 @@ private:
     bool isU8G2Begin = false;
     uint8_t I2C_Add = 0x3C;
     void Menu();
-    void Describe(int x, int y, int w, int h, bool isH);
+    void Describe(int x, int y, int w, int h);
     void QuickInfo(int x, int y, int w, int h);
+    void Main();
     void Main2(int x, int y, int TW, int TH);
     void ICON(int x, int y, int w, int h);
     void Battery(int x, int y, int w, int h, int b);
@@ -36,10 +37,10 @@ private:
     void Cal_M();
     void Save();
     void Wifi();
+    void Mode();
+    void AngleXYZ();
     int WiFiShow();
     bool Flash(int Due, int Period);
-    void Mode();
-    void Unit();
     int FlashCount;
     byte WiFi_Select_Flag = 0;
 
@@ -52,7 +53,6 @@ public:
     RealTimeClock *ClockShow;
     String *ID;
     AngleCalculate *Measure;
-    // IMU901 *imu;
     IMU42688 *imu;
     bool *SDState;
     bool *fSave;
@@ -63,8 +63,7 @@ public:
     byte MenuCursor = 0;
     Go_Standard *Standard;
     int BlockTime = 0;
-    byte ShowUnit = 0;
-
+    
     void Initialize();
     void Clear();
     void TurnOff();

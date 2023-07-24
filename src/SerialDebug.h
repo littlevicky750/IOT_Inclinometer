@@ -63,6 +63,7 @@ public:
 
     void printOnTop(String Str)
     {
+        Serial.println(Str);
         if (Buffer)
         {
             if ((*Buffer).length() < 1000000)

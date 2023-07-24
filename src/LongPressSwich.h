@@ -15,7 +15,7 @@ class LongPressSwich
 private:
     int LEDFlashCount = 0;
     int OffClock = 0;
-    byte SWPin;
+    byte SWPin[2];
     byte ButPin;
     LEDFlash *pLED;
     Battery *pBattery;
@@ -24,19 +24,23 @@ private:
 public:
     SDCard *pSD;
     int *LastTriggure;
-    void On(gpio_num_t WakeUpPin, byte Swich_Pin, LEDFlash &LED, Battery &Bat, OLED &oled)
+    void On(gpio_num_t WakeUpPin, byte Swich_Pin1,byte Swich_Pin2, LEDFlash &LED, Battery &Bat, OLED &oled)
     {
         esp_sleep_enable_ext0_wakeup(WakeUpPin, 0);
         bootCount++;
-        SWPin = Swich_Pin;
-        pinMode(SWPin, OUTPUT);
-        digitalWrite(SWPin, HIGH);
+        SWPin[0] = Swich_Pin1;
+        SWPin[1] = Swich_Pin2;
+        pinMode(SWPin[0], OUTPUT);
+        digitalWrite(SWPin[0], HIGH);
+        pinMode(SWPin[1], OUTPUT);
+        digitalWrite(SWPin[1], HIGH);
         // Begine from sleeping
         if (bootCount == 0)
         {
             oled.Clear();
             Wire.end();
-            digitalWrite(SWPin, LOW);
+            digitalWrite(SWPin[0], LOW);
+            digitalWrite(SWPin[1], LOW);
             esp_deep_sleep_start();
         }
         // Setting
@@ -74,7 +78,8 @@ public:
         if (millis() < 3000)
         {
             pOLED->Clear();
-            digitalWrite(SWPin, LOW);
+            digitalWrite(SWPin[0], LOW);
+            digitalWrite(SWPin[1], LOW);
             esp_deep_sleep_start();
         }
     }
@@ -99,7 +104,6 @@ public:
         else
         {
             pLED->Set(0, pLED->W, 1, 4);
-            pLED->Update();
         }
         bool TimeOffSleep = ((millis() - *LastTriggure > 5 * 60 * 1000) && (OffClock == 0) && millis() > 15 * 60 * 1000 && !TestVersion);
         bool LowPowerOff = (pBattery->Percent < 0);
@@ -130,6 +134,7 @@ public:
         }
         if (PressSleep || TimeOffSleep || LowPowerOff)
         {
+            pLED->Set(0, pLED->W, 1, 4);
             Debug.println("[Battery] Battery " + String(pBattery->Percent) + " %");
             int ForShow = millis();
             if (pSD)
@@ -145,6 +150,7 @@ public:
                     if (digitalRead(ButPin) == 0)
                     {
                         *LastTriggure = millis();
+                        pLED->Set(0, 0, 0, 4);
                         return;
                     }
                     delay(1);
@@ -160,10 +166,10 @@ public:
             Wire.end();
             SPI.end();
             Serial.end();
-            pLED->Set(0, pLED->W, 1, 4);
             pLED->Set(1, pLED->W, 1, 4);
             pLED->Update();
-            digitalWrite(SWPin, LOW);
+            digitalWrite(SWPin[0], LOW);
+            digitalWrite(SWPin[1], LOW);
             Serial.println("Sleep");
             esp_deep_sleep_start();
         }

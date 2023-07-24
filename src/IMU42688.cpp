@@ -20,6 +20,7 @@ void IMU42688::Initialize(byte Rx /*(-1)*/, byte Tx /*(-1)*/)
     b[0] = pref.getFloat("Bx", 0.0);
     b[1] = pref.getFloat("By", 0.0);
     b[2] = pref.getFloat("Bz", 0.0);
+    unit = pref.getInt("Unit", 0);
     pref.end();
     /*
     Serial.println(e[0]);
@@ -31,7 +32,8 @@ void IMU42688::Initialize(byte Rx /*(-1)*/, byte Tx /*(-1)*/)
     Serial.println(b[0]);
     Serial.println(b[1]);
     Serial.println(b[2]);
-    */
+    Serial.println(unit);
+    //*/
 }
 
 byte IMU42688::Update()
@@ -80,7 +82,7 @@ byte IMU42688::Update()
         }
         SensorTemperatureCollect[1] = SensorTemperatureCollect[0];
         SensorTemperatureCollect[0] = IMU.RecievedIMUData[9];
-        SensorTemperature = SensorTemperature * 0.6 + SensorTemperatureCollect[0] * 0.2 + SensorTemperatureCollect[1] * 0.2;
+        SensorTemperature = SensorTemperature * 0.96 + SensorTemperatureCollect[0] * 0.02 + SensorTemperatureCollect[1] * 0.02;
 
         for (size_t i = 0; i < 6; i++)
         {
@@ -93,36 +95,35 @@ byte IMU42688::Update()
         }
         memmove(&Angle[0], &AngleCope[0], sizeof(Angle));
         memmove(&AngleShow[0], &AngleCope[3], sizeof(Angle));
+        for (int i = 0; i < 3; i++)
+        {
+            AngleCal[i] = (Angle[i] + e[i]) * s[i];
+            AngleCalShow[i] = (AngleShow[i] + e[i]) * s[i];
+        }
         Gravity = Gravity_cope;
         if (Gravity_cope == 4 || Gravity_cope == 1)
             GravityPrevious = Gravity_cope;
 
         ErrorCode = IMU_Update_Success;
         /*
-        Serial.print("X : ");
-        Serial.print(AngleShow[0], 3);
-        Serial.print(", Y : ");
-        Serial.print(AngleShow[1], 3);
-        Serial.print(", Z : ");
-        Serial.print(AngleShow[2], 3);
-        Serial.print(", X : ");
-        Serial.print(Angle[0], 3);
-        Serial.print(", Y : ");
-        Serial.print(Angle[1], 3);
-        Serial.print(", Z : ");
-        Serial.print(Angle[2], 3);
-        Serial.print(", T : ");
-        Serial.print(SensorTemperature);
-        Serial.print(", acc1 :");
-        Serial.print(IMU.RecievedIMUData[6]);
-        Serial.print(", acc2 :");
-        Serial.print(IMU.RecievedIMUData[7]);
-        Serial.print(", acc3 :");
-        Serial.print(IMU.RecievedIMUData[8]);
-        Serial.print(", g : ");
-        Serial.println(Gravity);
+        {
+            String S_Print = "";
+            S_Print += "X : " + String(AngleShow[0], 3) + ", ";
+            S_Print += "Y : " + String(AngleShow[1], 3) + ", ";
+            S_Print += "Z : " + String(AngleShow[2], 3) + ", ";
+            S_Print += "X : " + String(Angle[0], 3) + ", ";
+            S_Print += "Y : " + String(Angle[1], 3) + ", ";
+            S_Print += "Z : " + String(Angle[2], 3) + ", ";
+            S_Print += "Acc1 : " + String(IMU.RecievedIMUData[6]) + ", ";
+            S_Print += "Acc2 : " + String(IMU.RecievedIMUData[7]) + ", ";
+            S_Print += "Acc3 : " + String(IMU.RecievedIMUData[8]) + ", ";
+            S_Print += "Traw : " + String(IMU.RecievedIMUData[9]) + ", ";
+            S_Print += "T : " + String(SensorTemperature) + ", ";
+            S_Print += "g : " + String(Gravity);
+            Debug.println(S_Print);
+        }
+        */
 
-        //*/
         break;
     NextLoop:
         delay(10);
@@ -155,6 +156,7 @@ byte IMU42688::Update()
         if (fWarmUp < 3)
         {
             StartTemperature = SensorTemperature;
+            SteadyTempCalStart = millis();
             fWarmUp++;
         }
         else if (fWarmUp != 100)
@@ -165,28 +167,40 @@ byte IMU42688::Update()
                 if (fWarmUp_t > fWarmUp)
                 {
                     fWarmUp = fWarmUp_t;
-                    WarmUpCount = 0;
+                    // Debug.println(String(fWarmUp));
+                }
+                if (millis() - SteadyTempCalStart < 1.5 * 60 * 1000)
+                {
+                    MaxTemp = max(MaxTemp, SensorTemperature);
+                    minTemp = min(minTemp, SensorTemperature);
                 }
                 else
                 {
-                    WarmUpCount++;
-                    if (WarmUpCount > 1000)
+                    fWarmUp_t = 0.5 / (MaxTemp - minTemp) * 100;
+                    if (fWarmUp_t >= 100)
+                        goto Warm_Up_Finish;
+                    if (fWarmUp_t > fWarmUp)
                     {
-                        fWarmUp = 100;
+                        fWarmUp = fWarmUp_t;
                         if (fWarmUpTime)
                             *fWarmUpTime = millis();
-                        pLED->Set(0, 0, 0, 2);
+                        // Debug.println(String(fWarmUp));
                     }
+                    SteadyTempCalStart = millis();
+                    MaxTemp = 0;
+                    minTemp = WarmUpTemperature;
                 }
             }
             else
             {
+            Warm_Up_Finish:
                 fWarmUp = 100;
                 if (fWarmUpTime)
                     *fWarmUpTime = millis();
                 pLED->Set(0, 0, 0, 2);
             }
         }
+        // Debug.println(String(SensorTemperature));
     }
     return ErrorCode;
 } // end void Update()
@@ -245,6 +259,84 @@ float IMU42688::getVerticalFilt()
     else if (Va < -180)
         Va += 360;
     return Va;
+}
+
+String IMU42688::String_degree(float degree)
+{
+    char A[8];
+    dtostrf(degree, 7, 2, A);
+    return A;
+}
+
+String IMU42688::String_rad(float degree)
+{
+    char A[8];
+    dtostrf(degree * PI / 180.0, 7, 4, A);
+    return A;
+}
+
+String IMU42688::String_mm(float degree)
+{
+    char A[8];
+    if (abs(degree) < 45 || abs(degree) > 135)
+    {
+        float mm = round(tan(degree * PI / 180.0) * 5000) / 5.0;
+        dtostrf(mm, 7, 1, A);
+    }
+    else if (abs(degree - 90) < 45)
+    {
+        float mm = round(tan((degree - 90) * PI / 180.0) * 5000) / 5.0;
+        dtostrf(mm, 7, 1, A);
+    }
+    else if (abs(degree + 90) < 45)
+    {
+        float mm = round(tan((degree + 90) * PI / 180.0) * 5000) / 5.0;
+        dtostrf(mm, 7, 1, A);
+    }
+    else
+        strcpy(A, "-------");
+    return A;
+}
+
+String IMU42688::String_now_unit(float degree)
+{
+    switch (unit)
+    {
+    case 0:
+        return String_degree(degree);
+    case 1:
+        return String_mm(degree);
+    case 2:
+        return String_rad(degree);
+    }
+    return "------";
+}
+
+void IMU42688::SetUnit(String Info)
+{
+    Info.toLowerCase();
+    int new_unit = unit;
+    if (Info.indexOf("unit=deg") != -1)
+    {
+        new_unit = 0;
+    }
+    else if (Info.indexOf("unit=mm/m") != -1)
+    {
+        new_unit = 1;
+    }
+    else if (Info.indexOf("unit=rad") != -1)
+    {
+        new_unit = 2;
+    }
+
+    if (new_unit != unit)
+    {
+        unit = new_unit;
+        pref.begin("Angle_Cal", false);
+        pref.putInt("Unit", unit);
+        pref.end();
+        Serial.println(new_unit);
+    }
 }
 
 void IMU42688::CollectCalData()
@@ -411,6 +503,7 @@ void IMU42688::FullCalibrate()
             Debug.print(String(prefkey[i + 3]) + " = " + String(b[i], 6) + ", ");
             Debug.println(String(prefkey[i + 6]) + " = " + String(e[i], 6));
         }
+        Debug.println("Temperature now = " + String(SensorTemperature) + " C");
         pref.end();
         CalibrateCheck = 2;
         pLED->Set(0, 0, 0, 6);
@@ -462,6 +555,8 @@ void IMU42688::FullCalibrate_Z()
         Debug.print("Sz = " + String(s[2], 6) + ", ");
         Debug.print("Bz = " + String(b[2], 6) + ", ");
         Debug.print("Ez = " + String(e[2], 6) + ", ");
+
+        Debug.println("Temperature now = " + String(SensorTemperature) + " C");
         CalibrateCheck = 2;
         pLED->Set(0, 0, 0, 6);
         pLED->Set(1, pLED->W, 2, 6, 5);
