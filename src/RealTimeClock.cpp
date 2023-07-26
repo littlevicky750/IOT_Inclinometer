@@ -562,7 +562,6 @@ int RealTimeClock::CheckTimeDifference(int Year, int Month, int Day, int hour, i
   return D.unixtime() - now.unixtime();
 }
 
-
 void RealTimeClock::SetTime(int Year, int Month, int Day, int hour, int minute, int second)
 {
   DateTime D(Year, Month, Day, hour, minute, second);
@@ -577,5 +576,21 @@ void RealTimeClock::SetTime(int Year, int Month, int Day, int hour, int minute, 
   }
   Inrtc.setTime(now.unixtime());
   now = D;
+  Debug.println("[Clock] Auto Adjust Time. Offset = " + String(TimeDifference) + " s. now = " + DateTimeStamp());
+}
+
+void RealTimeClock::SetTime(int unix_epoch)
+{
+  int TimeDifference = unix_epoch - now.unixtime();
+  if (RtcBegin)
+  {
+    rtc.adjust(unix_epoch);
+  }
+  else
+  {
+    CompileTime = DateTime(unix_epoch - millis() / 1000);
+  }
+  Inrtc.setTime(unix_epoch);
+  now = DateTime(unix_epoch);
   Debug.println("[Clock] Auto Adjust Time. Offset = " + String(TimeDifference) + " s. now = " + DateTimeStamp());
 }
