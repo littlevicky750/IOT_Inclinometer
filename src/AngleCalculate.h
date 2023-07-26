@@ -21,7 +21,7 @@ public:
     byte State = 0;
     byte *G;
     LEDFlash *pLED;
-    float ResultAngle[3] = {0};
+    float ResultAngle[4] = {0};
     float *InputAngle;
 
     void Switch(bool OnOff)
@@ -33,7 +33,7 @@ public:
             memset(MeasureAngle, 0, MeasureArraySize);
             StableCount = 0;
             MeasureCount = 0;
-            pLED->Set(0, pLED->B, 2, 2);
+            pLED->Set(0, pLED->G, 4, 3);
         }
         if (!OnOff)
         {
@@ -42,7 +42,7 @@ public:
             memset(MeasureAngle, 0, MeasureArraySize);
             StableCount = 0;
             MeasureCount = 0;
-            pLED->Set(0, pLED->K, 0, 2);
+            pLED->Set(0, pLED->K, 0, 3);
         }
     }
 
@@ -66,7 +66,7 @@ public:
             memset(MeasureAngle, 0, MeasureArraySize);
             MeasureCount = 0;
             State = Not_Stable;
-            pLED->Set(0, pLED->B, 2, 2);
+            pLED->Set(0, pLED->G, 4, 3);
             return Not_Stable;
         }
         else
@@ -85,11 +85,11 @@ public:
                 StableCount = 0;
                 MeasureCount = 0;
                 State = Done;
-                pLED->Set(0, pLED->G, 1, 2);
+                pLED->Set(0, pLED->G, 1, 3);
                 return Done;
             }
             State = Measuring;
-            pLED->Set(0, pLED->B, 1, 2);
+            pLED->Set(0, pLED->G, 2, 3);
             return Measuring;
         }
     }

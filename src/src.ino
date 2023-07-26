@@ -53,7 +53,7 @@ LED 0 + 1 :
 */
 
 #define RFID_RST IO_RFID_RST
-#define TestVersion true
+#define TestVersion false
 #include "LEDFlash.h"
 LEDFlash LED;
 
@@ -61,7 +61,8 @@ LEDFlash LED;
 #include "RealTimeClock.h"
 RealTimeClock Clock;
 
-#include "Net.h"
+// #include "Net.h"
+#include "BLE.h"
 #include "OLED.h"
 #include "LongPressSwich.h"
 #include "IMU42688.h"
@@ -85,6 +86,7 @@ Battery Bat;
 RFID rfid;
 AngleCalculate Calculate;
 Go_Standard Standard;
+BLE ble;
 
 int MainLoopDelay = 250;
 int FastLoopDelay = 125;
@@ -106,6 +108,8 @@ static void FAST(void *pvParameter)
     if (imu.Update() == imu.IMU_Update_Success)
     {
       Calculate.Input();
+      if (imu.CalibrateCheck == 1)
+        imu.Calibrate();
     }
     ButtonUpdate();
     oled.Update();
@@ -144,12 +148,11 @@ static void SLOW(void *pvParameter)
 {
   for (;;)
   {
-    Net_Signal_Check();
     Bat.Update();
     if (Bat.Percent < 10)
-      LED.Set(0, LED.R, 1, 1);
+      LED.Set(0, LED.R, 1, 2);
     else
-      LED.Set(0, 0, 0, 1);
+      LED.Set(0, 0, 0, 2);
     vTaskDelay(10000);
   }
 }
@@ -157,32 +160,26 @@ static void SLOW(void *pvParameter)
 static void Save(void *pvParameter)
 {
   sdCard.SetPin(Pin_SD_SCK, Pin_SD_MISO, Pin_SD_MOSI, Pin_SD_CS);
-  Net_Init();
-  // vTaskDelay(4000);
+  ble.Initialize(LastEdit);
   sdCard.Swich(true);
   TickType_t xLastWakeTime;
   BaseType_t xWasDelayed;
   xLastWakeTime = xTaskGetTickCount();
-  bool do_WiFi_Send = false;
   bool fHaveSD_pre = fHaveSD;
-  int TimeOutFilt = millis();
   for (;;)
   {
-    xWasDelayed = xTaskDelayUntil(&xLastWakeTime, do_WiFi_Send ? 10000 : 3000);
+    xWasDelayed = xTaskDelayUntil(&xLastWakeTime, 3000);
     if (!xWasDelayed)
-    {
-      if (millis() - TimeOutFilt < 1000)
-        Debug.println("[Warning] Task Save Time Out.");
-      TimeOutFilt = millis();
-    }
+      Debug.println("[Warning] Task Save Time Out.");
     // Check SD State and save Debug String every Loop
     // Create and Save Data to file if fSave = true;
     String Msg = "";
-    String Data = "";
     byte isSDSave = sdCard.Err_SD_Off;
     if (fSave && Calculate.State == Calculate.Done)
     {
-      // Save Msg
+      // BLE Send Message
+      ble.Send(&Calculate.ResultAngle[0]);
+      // SD Save Message
       Msg += Clock.DateTimeStamp() + ",";
       Msg += rfid.ID + ",";
       Msg += String(Calculate.ResultAngle[0], 2) + ",";
@@ -192,27 +189,17 @@ static void Save(void *pvParameter)
       Msg += String(imu.Gravity) + ",";
       Msg += String(imu.SensorTemperature) + "\n";
       isSDSave = sdCard.Save("/" + Clock.DateStamp("", 4), Msg);
+      if ((isSDSave == sdCard.SDOK))
+        LED.Set(1, LED.G, 2, 5, 3);
       fSave = false;
-      LED.Set(1, (isSDSave == sdCard.SDOK) ? LED.G : LED.Y, 2, 5, 3);
-      if (isSDSave == sdCard.SDOK)
+      if (ble.Status.isConnect == true || isSDSave == sdCard.SDOK)
         Calculate.Switch(false);
-      // Send Net
-      Data += "&time=" + Clock.DateTimeStamp("_");
-      Data += "&rfid=" + rfid.ID;
-      Data += "&standard=" + String(Standard.Standard);
-      Data += "&angleX=" + String(Calculate.ResultAngle[0], 4);
-      Data += "&angleY=" + String(Calculate.ResultAngle[1], 4);
-      Data += "&angleZ=" + String(Calculate.ResultAngle[2], 4);
-      Data += "&gravity=" + String(imu.Gravity % 3);
-      Data += "&sensor_temperature=" + String(imu.SensorTemperature, 2);
-      do_WiFi_Send = Net_Send_Measure(Data);
     }
     else
     {
-      do_WiFi_Send = Net_Send_Measure("");
       isSDSave = sdCard.Save("", Msg);
     }
-    // doRFID = (isSDSave == sdCard.SDOK || isSDSave == sdCard.Err_SD_Off);
+    ble.DoSwich();
     fHaveSD = (isSDSave == sdCard.SDOK || isSDSave == sdCard.Err_File_Write_Failed);
     if (fHaveSD != fHaveSD_pre)
     {
@@ -223,26 +210,15 @@ static void Save(void *pvParameter)
         {
           imu.ExpertMode = true;
           if (!TestVersion)
-          {
             Debug.Setup(sdCard);
-          }
           String SystemInfo = "";
           SystemInfo += "========================Expert_Mode_On========================\n";
           SystemInfo += "Last Upload Time = " + String(__DATE__) + String(__TIME__) + "\n";
-          SystemInfo += "Mac Address = " + WiFi.macAddress() + "\n";
-          SystemInfo += "s[0] = " + String(imu.s[0], 6) + ", ";
-          SystemInfo += "s[1] = " + String(imu.s[1], 6) + ", ";
-          SystemInfo += "s[2] = " + String(imu.s[2], 6) + "\n";
-          SystemInfo += "b[0] = " + String(imu.b[0], 6) + ", ";
-          SystemInfo += "b[1] = " + String(imu.b[1], 6) + ", ";
-          SystemInfo += "b[2] = " + String(imu.b[2], 6) + "\n";
-          SystemInfo += "e[0] = " + String(imu.e[0], 6) + ", ";
-          SystemInfo += "e[1] = " + String(imu.e[1], 6) + ", ";
-          SystemInfo += "e[2] = " + String(imu.e[2], 6) + "\n";
+          SystemInfo += "Mac Address = " + ble.AddrStr + "\n";
+          SystemInfo += imu.Cal_Info_From_Flash;
           SystemInfo += "==============================================================";
           Debug.printOnTop(SystemInfo);
         }
-        Net_Set(Info);
         imu.SetUnit(Info);
       }
       else
@@ -264,7 +240,7 @@ void ButtonChange0()
   if (digitalRead(Pin_Button0))
   { // Release
     Swich.Off_Clock_Stop();
-    LED.Set(0, 0, 0, 4);
+    LED.Set(0, 0, 0, 5);
     ButPress[0] = true;
   }
   else
@@ -294,23 +270,20 @@ void ButtonUpdate()
 
   bool ButtonUp = (imu.GravityPrevious == 4) ? ButPress[2] : ButPress[1];
   bool ButtonDown = (imu.GravityPrevious == 4) ? ButPress[1] : ButPress[2];
-  bool ButtonLeft = (imu.Gravity == 0) ? ButPress[1] : ButPress[2];
-  bool ButtonRight = (imu.Gravity == 0) ? ButPress[2] : ButPress[1];
-  bool ButtonAdd, ButtonMin;
-  if (imu.Gravity == 0)
+  bool ButtonAdd, ButtonMin, ButtonOn, ButtonOff;
+  if (imu.Gravity % 3 == 0)
   {
-    ButtonAdd = ButPress[2];
-    ButtonMin = ButPress[1];
-  }
-  else if (imu.Gravity == 3)
-  {
-    ButtonAdd = ButPress[1];
-    ButtonMin = ButPress[2];
+    ButtonAdd = (imu.Gravity == 0) ? ButPress[2] : ButPress[1];
+    ButtonMin = (imu.Gravity == 0) ? ButPress[1] : ButPress[2];
+    ButtonOn = ButtonAdd;
+    ButtonOff = ButtonMin;
   }
   else
   {
     ButtonAdd = ButtonDown;
     ButtonMin = ButtonUp;
+    ButtonOn = ButtonUp;
+    ButtonOff = ButtonDown;
   }
   switch (oled.Page)
   {
@@ -359,13 +332,19 @@ void ButtonUpdate()
     }
     break;
   case 1: // Menu Select Page
-    if (ButtonAdd)
-      oled.MenuCursor++;
-    if (ButtonMin)
-      oled.MenuCursor += (imu.fWarmUp == 100) ? 7 : 6;
-    oled.MenuCursor %= (imu.fWarmUp == 100) ? 8 : 7;
     if (ButPress[0])
+    {
       oled.Page = (oled.MenuCursor == 0) ? 0 : oled.MenuCursor + 1;
+      oled.Cursor = 0;
+    }
+    else
+    {
+      if (ButtonAdd)
+        oled.MenuCursor++;
+      if (ButtonMin)
+        oled.MenuCursor += (imu.fWarmUp == 100) ? 7 : 6;
+      oled.MenuCursor %= (imu.fWarmUp == 100) ? 8 : 7;
+    }
     break;
   case 2:
     if (ButtonUp)
@@ -375,23 +354,13 @@ void ButtonUpdate()
     if (ButPress[0])
       oled.Page = 0;
     break;
-    /*
-  case 3:
+  case 3: // BLE Page
+    if (ButtonOff)
+      ble.Status.OnOff = false;
+    if (ButtonOn)
+      ble.Status.OnOff = true;
     if (ButPress[0])
       oled.Page = 0;
-    if (ButtonUp)
-      imu.unit = (imu.unit + 2) % 3;
-    if (ButtonDown)
-      imu.unit = (imu.unit + 1) % 3;
-    break;
-    */
-  case 3: // WiFi Page
-    if (ButPress[0])
-      oled.Page = 0;
-    if (ButtonMin)
-      WiFiChannel(-1);
-    if (ButtonAdd)
-      WiFiChannel(1);
     break;
   case 4: // SD Card Page
     if (ButtonUp && sdCard.Cursor > 0)
@@ -431,7 +400,7 @@ void ButtonUpdate()
         Clock.Cursor = 6;
         Clock.UserSetTime(1);
         Clock.Cursor = -1;
-        LED.Set(0, LED.M, 2, 3, 3);
+        LED.Set(0, LED.M, 2, 4, 3);
       }
     }
     break;
@@ -440,8 +409,34 @@ void ButtonUpdate()
       oled.Page = 0;
     break;
   case 7: // Battery Page
-    if (ButPress[0] || ButPress[1] || ButPress[2])
-      oled.Page = 0;
+    if (ButtonUp)
+      oled.Cursor = max(0, oled.Cursor - 1);
+    if (ButtonDown)
+      oled.Cursor = min(3, oled.Cursor + 1);
+    if (ButPress[0])
+    {
+      if (oled.Cursor == 0)
+        oled.Page = 0;
+      else if (oled.Cursor == 1)
+      {
+        if (Bat.Percent > 80)
+        {
+          Bat.SetMax = true;
+          oled.Block("Set Battery to 100%");
+          oled.Page = 0;
+        }
+        else
+        {
+          oled.Block("Invalid Setting");
+        }
+      }
+      else if (oled.Cursor == 2)
+      {
+        Bat.Restore = true;
+        oled.Block("Restore Battery Setting");
+        oled.Page = 0;
+      }
+    }
     break;
   case 8: // Calibration Page
     if (imu.CalibrateCheck == -1 && imu.Cursor == 0 && ButPress[0])
@@ -459,8 +454,6 @@ void ButtonUpdate()
       if (imu.CalibrateCheck == 0 && ButtonAdd)
         imu.CalibrateSelect(4);
     }
-
-    imu.Calibrate();
     if (imu.CalibrateCheck == 2)
     {
       oled.Block((imu.Cursor == 2) ? "Calibration Data Clear" : "Calibrate Complete");
@@ -480,6 +473,7 @@ void setup()
   Bat.SetPin(Pin_Battery);
   Swich.On(Pin_Button_Wakeup, Pin_SwichEN1, Pin_SwichEN2, LED, Bat, oled);
   Serial.begin(115200);
+
   pinMode(IO_RFID_RST, OUTPUT);
   pinMode(IO_RFID_RST, HIGH);
   Wire.begin();
@@ -489,7 +483,7 @@ void setup()
 
   Clock.Initialize(MainLoopDelay);
   if (Clock.RtcLostPower)
-    LED.Set(0, LED.M, 1, 0);
+    LED.Set(1, LED.R, 1, 2);
   Debug.SetRTC(&Clock);
   Debug.printOnTop("-------------------------ESP_Start-------------------------");
   Debug.println("[Battery] Battery " + String(Bat.Percent) + " %");
@@ -512,10 +506,13 @@ void setup()
   oled.Measure = &Calculate;
   oled.SDState = &fHaveSD;
   oled.fSave = &fSave;
-  oled.pWifiState = &WiFiState;
+  oled.pBLEState = &ble.Status.Address[0];
   oled.Standard = &Standard;
   oled.pSD = &sdCard;
-  
+  ble.pRTC = &Clock;
+  ble.pLED = &LED;
+
+  // Wait for Button 0 release
   while (!digitalRead(Pin_Button0))
     delay(1);
   LED.Set(0, 0, 0, 4);
@@ -523,7 +520,7 @@ void setup()
   xTaskCreatePinnedToCore(FAST, "Core 1 Fast Loop", 10000, NULL, 3, T_FAST, 1);
   xTaskCreatePinnedToCore(MAIN, "Core 1 Main Loop", 16384, NULL, 2, T_MAIN, 1);
   xTaskCreatePinnedToCore(SLOW, "Core 0 Slow Loop", 10000, NULL, 1, T_SLOW, 0);
-  xTaskCreatePinnedToCore(Save, "Core 0 Save Data", 10000, NULL, 2, T_SAVE, 0);
+  xTaskCreatePinnedToCore(Save, "Core 0 Save Data", 16384, NULL, 2, T_SAVE, 0);
   delay(100);
   attachInterrupt(digitalPinToInterrupt(Pin_Button2), ButtonChange2, FALLING);
   attachInterrupt(digitalPinToInterrupt(Pin_Button1), ButtonChange1, FALLING);

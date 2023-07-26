@@ -47,6 +47,7 @@ void OLED::Begin()
         }
         while (millis() < 1000)
             ;
+        u8g2.initDisplay();
         u8g2.begin();
         isU8G2Begin = true;
         u8g2.clear();
@@ -64,10 +65,7 @@ void OLED::Initialize()
     u8g2.setFontMode(1);
     u8g2.setDrawColor(1);
     u8g2.clearBuffer();
-    char S[19] = "IoT  Inclinometer";
-    u8g2.drawStr(64 - u8g2.getStrWidth(S) / 2, 30, S);
-    char S1[17] = "V 3.11";
-    u8g2.drawStr(64 - u8g2.getStrWidth(S1) / 2, 48, S1);
+    u8g2.drawXBM(0, 0, 128, 64, OpenPage);
     u8g2.sendBuffer();
 }
 
@@ -98,6 +96,7 @@ void OLED::TurnOff()
 {
     Begin();
     u8g2.clear();
+    u8g2.initDisplay();
     delay(1);
     u8g2.setPowerSave(1);
 }
@@ -195,7 +194,7 @@ void OLED::Update()
 
     u8g2.clearBuffer();
     int Rotation_previous = Rotation;
-    if (imu->Gravity % 3 == 2 || Page == 2 || Page == 4 || Page == 5 || (Page == 8 && imu->CalibrateCheck == -1))
+    if (imu->Gravity % 3 == 2 || Page == 2 || Page == 4 || Page == 5 || Page == 7 || (Page == 8 && imu->CalibrateCheck == -1))
         Rotation = imu->GravityPrevious;
     else
         Rotation = imu->Gravity;
@@ -221,7 +220,7 @@ void OLED::Update()
         Mode();
         break;
     case 3:
-        Wifi();
+        Bluetooth();
         break;
     case 4:
         Save();
@@ -233,11 +232,14 @@ void OLED::Update()
         AngleXYZ();
         break;
     case 7:
-        Battery(u8g2.getDisplayWidth() / 2 - 32, u8g2.getDisplayHeight() / 2 - 24, 64, 26, 6);
+        Battery(12, 0, 24, 48, 4);
+        u8g2.drawXBM(48, 0, 80, 64, Battery_H);
         char B[6];
         sprintf(B, "%d %%", min(max(*Bat, 0), 100));
         u8g2.setFont(Default_Font);
-        u8g2.drawStr((u8g2.getDisplayWidth() - u8g2.getStrWidth(B)) / 2, u8g2.getDisplayHeight() / 2 + 24, B);
+        u8g2.drawStr((48 - u8g2.getStrWidth(B)) / 2, 64, B);
+        u8g2.setDrawColor(2);
+        u8g2.drawBox(50, 2 + 22 * Cursor, 76, 16);
         break;
     case 8:
         if (imu->CalibrateCheck == -1)
@@ -381,17 +383,7 @@ void OLED::Menu()
             u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, Home24x24);
             break;
         case 2:
-            u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, WiFi24x24[WiFiShow()]);
-            if (pWifiState->now == pWifiState->Off)
-            {
-                u8g2.setFont(u8g2_font_6x13_tr);
-                u8g2.drawStr(x + nx + 22, y + ny + 28, "X");
-            }
-            else
-            {
-                u8g2.setFont(Describe_Font);
-                u8g2.drawGlyph(x + nx + 22, y + ny + 28, pWifiState->Channel + 48);
-            }
+            u8g2.drawXBM(x + nx + 4, y + ny + 4, 24, 24, BLE_allArray[BLEShow()]);
             break;
         case 3:
             if (pSD->Show.indexOf("OFF") != -1)
@@ -453,10 +445,12 @@ void OLED::Describe(int x, int y, int w, int h)
     else if (State == 4)
         strcpy(S, "Done");
     else if (State == 5)
-        strcpy(S, "Saving");
+        strcpy(S, "Sending");
     else if (State == 6)
-        strcpy(S, "No SD");
+        strcpy(S, "Saving");
     else if (State == 7)
+        strcpy(S, "No SD");
+    else if (State == 8)
         strcpy(S, "Error");
     else
         strcpy(S, "Unknown");
@@ -607,8 +601,15 @@ void OLED::ICON(int x, int y, int w, int h)
     else if (State == 4)
         u8g2.drawXBM(x + w / 2 - 12, y + h / 2 - 12, 24, 24, Done24x24);
     else if (State == 5)
-        u8g2.drawXBM(x + w / 2 - 12, y + h / 2 - 12, 24, 24, SDSave24x24);
+    {
+        if (Flash(6, 12))
+            u8g2.drawXBM(x + w / 2 - 12, y + h / 2 - 12, 24, 24, BLE_allArray[3]);
+        else
+            u8g2.drawXBM(x + w / 2 - 12, y + h / 2 - 12, 24, 24, BLE_allArray[4]);
+    }
     else if (State == 6)
+        u8g2.drawXBM(x + w / 2 - 12, y + h / 2 - 12, 24, 24, SDSave24x24);
+    else if (State == 7)
         u8g2.drawXBM(x + w / 2 - 12, y + h / 2 - 12, 24, 24, NOSD24x24);
     u8g2.setDrawColor(1);
 }
@@ -621,16 +622,18 @@ void OLED::CheckState()
         State = 2;
     else if (Measure->State == Measure->Measuring)
         State = 3;
-    else if (*SDState == false && pSD->Show.indexOf("OFF") == -1)
-        State = 6;
+    else if (*fSave == true && *(pBLEState + 6) == true)
+        State = 5;
+    else if (*SDState == false && pSD->Show.indexOf("OFF") == -1 && *(pBLEState + 6) == false)
+        State = 7;
     else if (Measure->State == Measure->Sleep)
         State = 1;
     else if (*fSave == true)
-        State = 5;
+        State = 6;
     else if (Measure->State == Measure->Done)
         State = 4;
     else
-        State = 7;
+        State = 8;
 }
 
 void OLED::Clock()
@@ -643,9 +646,6 @@ void OLED::Clock()
     String NowSet = (ClockShow->Cursor == -1) ? "Now" : "Set";
     u8g2.setFont(Default_Font);
     u8g2.drawStr(9, 13, ClockShow->DateStamp(NowSet, "WWW").c_str());
-    String GMT = "GMT+" + String(pWifiState->GMT);
-    int w = u8g2.getStrWidth(GMT.c_str());
-    u8g2.drawStr(118 - w, 13, GMT.c_str());
     if (ClockShow->Cursor != 0 || Flash(3, 6))
     {
         u8g2.drawStr(9, 64, ClockShow->DateStamp(NowSet, "YYYY").c_str());
@@ -735,8 +735,10 @@ void OLED::Save()
     }
 }
 
-void OLED::YesNo(bool isH, bool Select)
+void OLED::Selection(bool isH, bool Select, uint8_t Mode)
 {
+    char S1[2][4] = {"No", "Off"};
+    char S2[2][4] = {"Yes", "On"};
     u8g2.setFont(MSpace_Font);
     u8g2.setDrawColor(2);
     int w;
@@ -745,21 +747,26 @@ void OLED::YesNo(bool isH, bool Select)
         u8g2.drawBox(43, 28 + 20 * Select, 42, 14);
         u8g2.drawFrame(41, 26, 46, 18);
         u8g2.drawFrame(41, 46, 46, 18);
-        w = u8g2.getStrWidth("No");
-        u8g2.drawStr(64 - w / 2, 40, "No");
-        w = u8g2.getStrWidth("Yes");
-        u8g2.drawStr(64 - w / 2, 60, "Yes");
+        w = u8g2.getStrWidth(S1[Mode]);
+        u8g2.drawStr(64 - w / 2, 40, S1[Mode]);
+        w = u8g2.getStrWidth(S2[Mode]);
+        u8g2.drawStr(64 - w / 2, 60, S2[Mode]);
     }
     else
     {
         u8g2.drawBox(2 + 33 * Select, 112, 26, 14);
         u8g2.drawFrame(0, 110, 30, 18);
         u8g2.drawFrame(33, 110, 30, 18);
-        w = u8g2.getStrWidth("No");
-        u8g2.drawStr(15 - w / 2, 124, "No");
-        w = u8g2.getStrWidth("Yes");
-        u8g2.drawStr(48 - w / 2, 124, "Yes");
+        w = u8g2.getStrWidth(S1[Mode]);
+        u8g2.drawStr(15 - w / 2, 124, S1[Mode]);
+        w = u8g2.getStrWidth(S2[Mode]);
+        u8g2.drawStr(48 - w / 2, 124, S2[Mode]);
     }
+}
+
+void OLED::YesNo(bool isH, bool Select)
+{
+    Selection(isH, Select, 0);
 }
 
 void OLED::Cal_M()
@@ -860,6 +867,10 @@ void OLED::Cal()
         else
             YesNo((Rotation % 3 != 0), imu->YesNo);
     }
+    else if (imu->CalibrateCheck == 1 && imu->Cursor == 2)
+    {
+        Block("Calibration Data Clear");
+    }
     else if (imu->CalibrateCheck == 1)
     {
         for (int i = 1; i < 3; i++)
@@ -886,16 +897,12 @@ void OLED::Cal()
     }
 }
 
-int OLED::WiFiShow()
+int OLED::BLEShow()
 {
-    if (pWifiState->now == 0)
+    if (*(pBLEState + 7) == false)
         return 0;
-    else if (pWifiState->now == pWifiState->Connected)
-    {
-        int S = pWifiState->Signal;
-        S = min(max(S, 1), 4);
-        return S;
-    }
+    if (*(pBLEState + 6) == true)
+        return 4;
     else if (Flash(5, 20))
         return 1;
     else if (Flash(10, 20))
@@ -906,77 +913,33 @@ int OLED::WiFiShow()
         return 4;
 }
 
-void OLED::Wifi()
+void OLED::Bluetooth()
 {
-    // Button
-    // u8g2.setFont(u8g2_font_victoriabold8_8r);
-
-    u8g2.setFont(MSpace_Font);
-    if (pWifiState->Channel < WiFi_Select_Flag)
-        WiFi_Select_Flag = pWifiState->Channel;
-    else if (pWifiState->Channel > WiFi_Select_Flag + 3)
-        WiFi_Select_Flag = pWifiState->Channel - 3;
     if (Rotation % 3 == 1)
     {
-        int xb = (Rotation == 1) ? 114 : 0;
-        if (WiFi_Select_Flag == 0)
-            u8g2.drawBox(xb + 2, 1, 10, 2);
-        else
-            u8g2.drawXBM(xb + 2, 0, 10, 3, Up10x3);
-        if (WiFi_Select_Flag == 2)
-            u8g2.drawBox(xb + 2, 61, 10, 2);
-        else
-            u8g2.drawXBM(xb + 2, 61, 10, 3, Down10x3);
-        u8g2.drawRBox(xb, 4 + 14 * (pWifiState->Channel - WiFi_Select_Flag), 14, 14, 3);
-        u8g2.setDrawColor(2);
-        for (int i = 0; i < 4; i++)
+        int x = (Rotation == 1) ? 9 : 26;
+        u8g2.drawXBM(33 + x, 13, 24, 24, BLE_allArray[BLEShow()]);
+        for (int i = 0; i < 6; i++)
         {
-            if (i + WiFi_Select_Flag == 0)
-                u8g2.drawStr(xb + 4, 16 + 14 * i, "X");
-            else
-                u8g2.drawGlyph(xb + 4, 16 + 14 * i, 48 + i + WiFi_Select_Flag);
+            u8g2.drawXBM(16 * i + x, 43, 5, 9, HEX_5x9_allArray[*(pBLEState + 5 - i) / 0x10]);
+            u8g2.drawXBM(16 * i + x + 6, 43, 5, 9, HEX_5x9_allArray[*(pBLEState + 5 - i) % 0x10]);
+            if (i != 5)
+                u8g2.drawPixel(16 * i + x + 13, 51);
         }
-        u8g2.setDrawColor(1);
+        u8g2.drawXBM((Rotation == 1) ? 111 : 0, 0, 17, 64, Switch_allArray[*(pBLEState + 7) + 2]);
     }
     else
     {
-        int yb = (Rotation == 0) ? 0 : 114;
-        if (WiFi_Select_Flag == 0)
-            u8g2.drawBox(1, yb + 2, 2, 10);
-        else
-            u8g2.drawXBM(0, yb + 2, 3, 10, Left3x10);
-        if (WiFi_Select_Flag == 2)
-            u8g2.drawBox(61, yb + 2, 2, 10);
-        else
-            u8g2.drawXBM(61, yb + 2, 3, 10, Right3x10);
-        u8g2.drawRBox(4 + 14 * (pWifiState->Channel - WiFi_Select_Flag), yb, 14, 14, 3);
-        u8g2.setDrawColor(2);
-        for (int i = 0; i < 4; i++)
+        u8g2.drawXBM(19, 33, 24, 24, BLE_allArray[BLEShow()]);
+        for (int i = 0; i < 6; i++)
         {
-            if (i + WiFi_Select_Flag == 0)
-                u8g2.drawStr(8 + 14 * i, yb + 12, "X");
-            else
-                u8g2.drawGlyph(8 + 14 * i, yb + 12, 48 + i + WiFi_Select_Flag);
+            u8g2.drawXBM(11 * i, 63, 4, 7, HEX_4x7_allArray[*(pBLEState + 5 - i) / 0x10]);
+            u8g2.drawXBM(11 * i + 5, 63, 4, 7, HEX_4x7_allArray[*(pBLEState + 5 - i) % 0x10]);
+            if (i != 5)
+                u8g2.drawPixel(11 * i + 9, 70);
         }
-        u8g2.setDrawColor(1);
+        u8g2.drawXBM(0, 104, 64, 24, Switch_allArray[*(pBLEState + 7)]);
     }
-
-    // Description
-    int x[5] = {16, 41, 0, 16, 55};
-    int y[5] = {52, 13, 0, 38, 13};
-    u8g2.drawXBM(x[Rotation], y[Rotation], 31, 25, WiFi31x25[WiFiShow()]);
-    u8g2.setFont(Describe_Font);
-    char A[13];
-    if (pWifiState->now == pWifiState->Off)
-        strcpy(A, "Function Off");
-    else if (pWifiState->now == pWifiState->On)
-        strcpy(A, "No Signal");
-    else if (pWifiState->now == pWifiState->ConnectingWifi)
-        strcpy(A, "Connecting.");
-    else if (pWifiState->now == pWifiState->Connected)
-        strcpy(A, "Connected");
-    int w = u8g2.getStrWidth(A);
-    u8g2.drawStr(x[Rotation] + 16 - w / 2, y[Rotation] + 38, A);
 }
 
 bool OLED::Flash(int Due, int Period)

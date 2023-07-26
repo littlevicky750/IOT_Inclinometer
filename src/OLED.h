@@ -5,7 +5,6 @@
 #include "IMU42688.h"
 #include "RealTimeClock.h"
 #include "AngleCalculate.h"
-#include "NetState.h"
 #include "Go_Standard.h"
 
 #define H 1
@@ -33,16 +32,18 @@ private:
     void CheckState();
     void Clock();
     void Cal();
+    void Selection(bool isH, bool Select,uint8_t Mode /*0: YesNo, 1: OnOff*/);
     void YesNo(bool isH, bool Select);
     void Cal_M();
     void Save();
-    void Wifi();
+    void Bluetooth();
     void Mode();
     void AngleXYZ();
-    int WiFiShow();
+    int BLEShow();
     bool Flash(int Due, int Period);
     int FlashCount;
     byte WiFi_Select_Flag = 0;
+    byte State = 0;
 
     const uint8_t *Default_Font = u8g2_font_helvB10_tr;
     const uint8_t *Describe_Font = u8g2_font_helvB08_tr;
@@ -57,10 +58,11 @@ public:
     bool *SDState;
     bool *fSave;
     SDCard *pSD;
-    NetState *pWifiState;
-    byte State = 0;
+    uint8_t *pBLEState;
+    
     byte Page = 0;
     byte MenuCursor = 0;
+    byte Cursor = 0;
     Go_Standard *Standard;
     int BlockTime = 0;
     

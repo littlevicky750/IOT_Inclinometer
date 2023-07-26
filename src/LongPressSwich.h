@@ -53,12 +53,15 @@ public:
         ButPin = WakeUpPin;
         // Battary Test
         pBattery->Update();
-
+        pinMode(IO_OLED_RST,OUTPUT);
+        digitalWrite(IO_OLED_RST,LOW);
+        delay(1);
+        digitalWrite(IO_OLED_RST,HIGH);
         if (!TestVersion)
         {
             if (pBattery->Percent < 0)
             {
-                pLED->Set(0, LED.R, 1, 4);
+                pLED->Set(0, LED.R, 1, 5);
                 pLED->Update();
                 pOLED->ShowLowPower();
                 while (!digitalRead(ButPin))
@@ -67,7 +70,7 @@ public:
             }
         }
 
-        pLED->Set(0, LED.W, 1, 4);
+        pLED->Set(0, LED.W, 1, 5);
         pLED->Update();
         // Detect 3 s long press
         pinMode(ButPin, INPUT);
@@ -103,9 +106,9 @@ public:
             PressSleep = true;
         else
         {
-            pLED->Set(0, pLED->W, 1, 4);
+            pLED->Set(0, pLED->W, 1, 5);
         }
-        bool TimeOffSleep = ((millis() - *LastTriggure > 5 * 60 * 1000) && (OffClock == 0) && millis() > 15 * 60 * 1000 && !TestVersion);
+        bool TimeOffSleep = ((millis() - *LastTriggure > 5 * 60 *  1000) && (OffClock == 0) && millis() > 15 * 60 * 1000 && !TestVersion);
         bool LowPowerOff = (pBattery->Percent < 0);
 
         if (!PressSleep && !TimeOffSleep && !LowPowerOff)
@@ -134,7 +137,7 @@ public:
         }
         if (PressSleep || TimeOffSleep || LowPowerOff)
         {
-            pLED->Set(0, pLED->W, 1, 4);
+            pLED->Set(0, pLED->W, 1, 5);
             Debug.println("[Battery] Battery " + String(pBattery->Percent) + " %");
             int ForShow = millis();
             if (pSD)
@@ -150,7 +153,7 @@ public:
                     if (digitalRead(ButPin) == 0)
                     {
                         *LastTriggure = millis();
-                        pLED->Set(0, 0, 0, 4);
+                        pLED->Set(0, 0, 0, 5);
                         return;
                     }
                     delay(1);
@@ -161,12 +164,11 @@ public:
             {
                 // Wait until release Button
             }
-            esp_wifi_stop();
 
             Wire.end();
             SPI.end();
             Serial.end();
-            pLED->Set(1, pLED->W, 1, 4);
+            pLED->Set(1, pLED->W, 1, 5);
             pLED->Update();
             digitalWrite(SWPin[0], LOW);
             digitalWrite(SWPin[1], LOW);
