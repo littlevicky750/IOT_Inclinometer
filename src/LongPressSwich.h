@@ -8,6 +8,8 @@
 #include "LEDFlash.h"
 #include "OLED.h"
 #include "Battery.h"
+#include "esp_bt_main.h"
+#include "esp_bt.h"
 RTC_DATA_ATTR int bootCount = -1;
 
 class LongPressSwich
@@ -164,7 +166,8 @@ public:
             {
                 // Wait until release Button
             }
-
+            esp_bt_controller_disable;
+            esp_bluedroid_disable;
             Wire.end();
             SPI.end();
             Serial.end();

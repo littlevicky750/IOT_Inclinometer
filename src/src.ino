@@ -34,22 +34,28 @@ const byte Pin_LED_0_R = 42;
 
 /*
 LED Setting
+Color-Modeode - Describe (Priority)
+Mode L : Light Up
+Mode F : Fast Blink
+Mode S : Slow Blink
+
 LED 0 :
-  R-L - Bat Low Power (1)
-  Y-L - IMU Not Warm Up (2)
-  B-F - IMU Waiting for Stable (2)
-  B-L - IMU Collecting Data (2)
-  G-L - IMU Collect Data Done (2)
-  M-L - RTC Lost Power (0)
+  R-L - Bat Low Power (2)
+  Y-L - IMU Not Warm Up (3)
+  G-F - IMU Waiting for Stable (3) 
+  G-S - IMU Collecting Data (3) 
+  G-L - IMU Collect Data Done (3)
+  B-F - Bluetooth advertising (1)
+  B-S - Bluetooth connect to client (1)
+  C-F - RFID find new ID (4)
   M-F - RTC Set Time Success (3)
   W-L - IO-0 Press (4)
-  W-F - RFID Find New (5)
 LED 1 :
   R-F - Any Other Error (0)
-  G-F - File Save Success / Create New File (1)
-  Y-F - No SD (1)
-LED 0 + 1 :
-  G-F - Working
+  G-F - File Save Success / Create New File (4)
+  Y-F - Searching for SD card
+  Y-S - SD card off
+
 */
 
 #define RFID_RST IO_RFID_RST
