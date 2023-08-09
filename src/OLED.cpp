@@ -194,7 +194,7 @@ void OLED::Update()
 
     u8g2.clearBuffer();
     int Rotation_previous = Rotation;
-    if (imu->Gravity % 3 == 2 || Page == 2 || Page == 4 || Page == 5 || Page == 7 || (Page == 8 && imu->CalibrateCheck == -1))
+    if (imu->Gravity % 3 == 2 || Page == 2 || Page == 4 || Page == 5 || (Page == 8 && imu->CalibrateCheck == -1))
         Rotation = imu->GravityPrevious;
     else
         Rotation = imu->Gravity;
@@ -232,15 +232,37 @@ void OLED::Update()
         AngleXYZ();
         break;
     case 7:
-        Battery(12, 0, 24, 48, 4);
-        u8g2.drawXBM(48, 0, 80, 64, Battery_H);
+    {
+        char Sleep_T[5][3] = {" 5", "15", "30", "60", "90"};
         char B[6];
-        sprintf(B, "%d %%", min(max(*Bat, 0), 100));
-        u8g2.setFont(Default_Font);
-        u8g2.drawStr((48 - u8g2.getStrWidth(B)) / 2, 64, B);
-        u8g2.setDrawColor(2);
-        u8g2.drawBox(50, 2 + 22 * Cursor, 76, 16);
+        sprintf(B, "%d%%", min(max(*Bat, 0), 100));
+        u8g2.setFont(MSpace_Font);
+        if (Rotation % 3 != 0)
+        {
+            u8g2.drawXBM(0, 0, 128, 64, Battery_H);
+            u8g2.drawStr(15 - u8g2.getStrWidth(B) / 2, 64, B);
+            u8g2.drawBox(7, 50 - *Bat * 29 / 100, 16, *Bat * 29 / 100);
+            u8g2.drawStr(50, 49, Sleep_T[*SleepTime]);
+            for (int i = 0; i < *SleepTime; i++)
+            {
+                u8g2.drawBox(119, 46 - 12 * i, 6, 9);
+            }
+            u8g2.drawBox(123, 58 - *SleepTime * 12, 3, *SleepTime * 12);
+        }
+        else
+        {
+            u8g2.drawXBM(0, 0, 64, 128, Battery_V);
+            u8g2.drawStr(32 - u8g2.getStrWidth(B) / 2, 74, B);
+            u8g2.drawBox(2, 36, *Bat * 52 / 100, 23);
+            u8g2.drawStr(12, 111, Sleep_T[*SleepTime]);
+            for (int i = 0; i < *SleepTime; i++)
+            {
+                u8g2.drawBox(10 + 12 * i, 119, 9, 6);
+            }
+            u8g2.drawBox(7, 123, *SleepTime * 12, 3);
+        }
         break;
+    }
     case 8:
         if (imu->CalibrateCheck == -1)
             Cal_M();

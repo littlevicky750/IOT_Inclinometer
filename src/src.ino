@@ -415,34 +415,12 @@ void ButtonUpdate()
       oled.Page = 0;
     break;
   case 7: // Battery Page
-    if (ButtonUp)
-      oled.Cursor = max(0, oled.Cursor - 1);
-    if (ButtonDown)
-      oled.Cursor = min(3, oled.Cursor + 1);
+    if (ButtonOn)
+      Swich.SleepTimeAdjust(true);
+    if (ButtonOff)
+      Swich.SleepTimeAdjust(false);
     if (ButPress[0])
-    {
-      if (oled.Cursor == 0)
-        oled.Page = 0;
-      else if (oled.Cursor == 1)
-      {
-        if (Bat.Percent > 80)
-        {
-          Bat.SetMax = true;
-          oled.Block("Set Battery to 100%");
-          oled.Page = 0;
-        }
-        else
-        {
-          oled.Block("Invalid Setting");
-        }
-      }
-      else if (oled.Cursor == 2)
-      {
-        Bat.Restore = true;
-        oled.Block("Restore Battery Setting");
-        oled.Page = 0;
-      }
-    }
+      oled.Page = 0;
     break;
   case 8: // Calibration Page
     if (imu.CalibrateCheck == -1 && imu.Cursor == 0 && ButPress[0])
@@ -515,6 +493,7 @@ void setup()
   oled.pBLEState = &ble.Status.Address[0];
   oled.Standard = &Standard;
   oled.pSD = &sdCard;
+  oled.SleepTime = &Swich.SleepTimeSelect;
   ble.pRTC = &Clock;
   ble.pLED = &LED;
 

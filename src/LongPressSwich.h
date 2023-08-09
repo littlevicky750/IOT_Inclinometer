@@ -10,6 +10,7 @@
 #include "Battery.h"
 #include "esp_bt_main.h"
 #include "esp_bt.h"
+#include "Preferences.h"
 RTC_DATA_ATTR int bootCount = -1;
 
 class LongPressSwich
@@ -22,11 +23,14 @@ private:
     LEDFlash *pLED;
     Battery *pBattery;
     OLED *pOLED;
+    int Sleep_T[5] = {5, 15, 30, 60, 90};
+    Preferences Sleep_pref;
 
 public:
     SDCard *pSD;
     int *LastTriggure;
-    void On(gpio_num_t WakeUpPin, byte Swich_Pin1,byte Swich_Pin2, LEDFlash &LED, Battery &Bat, OLED &oled)
+    int SleepTimeSelect = 1;
+    void On(gpio_num_t WakeUpPin, byte Swich_Pin1, byte Swich_Pin2, LEDFlash &LED, Battery &Bat, OLED &oled)
     {
         esp_sleep_enable_ext0_wakeup(WakeUpPin, 0);
         bootCount++;
@@ -55,10 +59,10 @@ public:
         ButPin = WakeUpPin;
         // Battary Test
         pBattery->Update();
-        pinMode(IO_OLED_RST,OUTPUT);
-        digitalWrite(IO_OLED_RST,LOW);
+        pinMode(IO_OLED_RST, OUTPUT);
+        digitalWrite(IO_OLED_RST, LOW);
         delay(1);
-        digitalWrite(IO_OLED_RST,HIGH);
+        digitalWrite(IO_OLED_RST, HIGH);
         if (!TestVersion)
         {
             if (pBattery->Percent < 0)
@@ -87,6 +91,9 @@ public:
             digitalWrite(SWPin[1], LOW);
             esp_deep_sleep_start();
         }
+        Sleep_pref.begin("Sleep");
+        SleepTimeSelect = Sleep_pref.getInt("time", 1);
+        Sleep_pref.end();
     }
 
     void Off_Clock_Start()
@@ -110,7 +117,7 @@ public:
         {
             pLED->Set(0, pLED->W, 1, 5);
         }
-        bool TimeOffSleep = ((millis() - *LastTriggure > 5 * 60 *  1000) && (OffClock == 0) && millis() > 15 * 60 * 1000 && !TestVersion);
+        bool TimeOffSleep = ((millis() - *LastTriggure > Sleep_T[SleepTimeSelect] * 60 * 1000) && (OffClock == 0) && millis() > 15 * 60 * 1000 && !TestVersion);
         bool LowPowerOff = (pBattery->Percent < 0);
 
         if (!PressSleep && !TimeOffSleep && !LowPowerOff)
@@ -177,6 +184,24 @@ public:
             digitalWrite(SWPin[1], LOW);
             Serial.println("Sleep");
             esp_deep_sleep_start();
+        }
+    }
+
+    void SleepTimeAdjust(bool isAdd)
+    {
+        if (isAdd && SleepTimeSelect < 4)
+        {
+            SleepTimeSelect++;
+            Sleep_pref.begin("Sleep");
+            Sleep_pref.putInt("time", SleepTimeSelect);
+            Sleep_pref.end();
+        }
+        if(!isAdd && SleepTimeSelect > 0)
+        {
+            SleepTimeSelect--;
+            Sleep_pref.begin("Sleep");
+            Sleep_pref.putInt("time", SleepTimeSelect);
+            Sleep_pref.end();
         }
     }
 };
