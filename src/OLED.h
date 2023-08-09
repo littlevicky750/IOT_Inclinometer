@@ -59,6 +59,7 @@ public:
     bool *fSave;
     SDCard *pSD;
     uint8_t *pBLEState;
+    int *SleepTime;
     
     byte Page = 0;
     byte MenuCursor = 0;
